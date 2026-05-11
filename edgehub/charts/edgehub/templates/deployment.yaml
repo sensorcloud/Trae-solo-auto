@@ -1,0 +1,91 @@
+{{- if .Values.config.jwt.secret -}}
+{{- $jwtSecret := .Values.config.jwt.secret -}}
+{{- else -}}
+{{- $jwtSecret := randAlphaNum 32 -}}
+{{- end -}}
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ .Release.Namespace }}
+  labels:
+    name: {{ .Release.Namespace }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "edgehub.fullname" . }}-config
+  namespace: {{ .Release.Namespace }}
+data:
+  config.yaml: |
+    mode: {{ .Values.config.mode }}
+    server:
+      port: {{ .Values.config.server.port }}
+    database:
+      host: {{ include "edgehub.fullname" . }}-postgresql
+      port: 5432
+      name: {{ .Values.postgresql.auth.database }}
+      user: {{ .Values.postgresql.auth.username }}
+      sslmode: {{ .Values.config.database.sslmode }}
+    redis:
+      host: {{ include "edgehub.fullname" . }}-redis
+      port: 6379
+    jwt:
+      expiration: {{ .Values.config.jwt.expiration }}
+    monitor:
+      enabled: {{ .Values.config.monitor.enabled }}
+    scheduler:
+      enabled: {{ .Values.config.scheduler.enabled }}
+      type: {{ .Values.config.scheduler.type }}
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ include "edgehub.fullname" . }}-secrets
+  namespace: {{ .Release.Namespace }}
+type: Opaque
+stringData:
+  jwt-secret: {{ $jwtSecret }}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ include "edgehub.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "edgehub.labels" . | nindent 4 }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "edgehub.fullname" . }}
+  labels:
+    {{- include "edgehub.labels" . | nindent 4 }}
+rules:
+- apiGroups: [""]
+  resources: ["nodes", "namespaces", "pods", "services", "configmaps", "secrets"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+- apiGroups: ["apps"]
+  resources: ["deployments", "daemonsets", "statefulsets", "replicasets"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+- apiGroups: ["batch"]
+  resources: ["jobs", "cronjobs"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+- apiGroups: ["metrics.k8s.io"]
+  resources: ["pods", "nodes"]
+  verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ include "edgehub.fullname" . }}
+  labels:
+    {{- include "edgehub.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ include "edgehub.fullname" . }}
+subjects:
+- kind: ServiceAccount
+  name: {{ include "edgehub.fullname" . }}
+  namespace: {{ .Release.Namespace }}

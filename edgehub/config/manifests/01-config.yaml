@@ -1,0 +1,86 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: edgehub-config
+  namespace: edgehub-system
+data:
+  config.yaml: |
+    mode: release
+    server:
+      port: 8080
+      read_timeout: 30
+      write_timeout: 30
+      max_body_size: 10485760
+    database:
+      host: postgres.edgehub-system.svc
+      port: 5432
+      name: edgehub
+      user: edgehub
+      sslmode: disable
+      max_conn: 100
+    redis:
+      host: redis.edgehub-system.svc
+      port: 6379
+      pool_size: 100
+    jwt:
+      secret: ${JWT_SECRET}
+      expiration: 24h
+      refresh_exp: 720h
+    monitor:
+      enabled: true
+      prometheus_url: http://prometheus.edgehub-system.svc:9090
+      grafana_url: http://grafana.edgehub-system.svc:3000
+    scheduler:
+      enabled: true
+      type: kueue
+      max_retry: 3
+      queue_size: 1000
+      workers: 10
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: edgehub-secrets
+  namespace: edgehub-system
+type: Opaque
+stringData:
+  db-password: ${DB_PASSWORD}
+  redis-password: ${REDIS_PASSWORD}
+  jwt-secret: ${JWT_SECRET}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: edgehub-api
+  namespace: edgehub-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: edgehub-api
+rules:
+- apiGroups: [""]
+  resources: ["nodes", "namespaces", "pods", "services", "configmaps"]
+  verbs: ["get", "list", "watch", "create", "update", "delete"]
+- apiGroups: ["apps"]
+  resources: ["deployments", "daemonsets", "statefulsets"]
+  verbs: ["get", "list", "watch", "create", "update", "delete"]
+- apiGroups: ["batch"]
+  resources: ["jobs", "cronjobs"]
+  verbs: ["get", "list", "watch", "create", "update", "delete"]
+- apiGroups: ["metrics.k8s.io"]
+  resources: ["pods", "nodes"]
+  verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: edgehub-api
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: edgehub-api
+subjects:
+- kind: ServiceAccount
+  name: edgehub-api
+  namespace: edgehub-system

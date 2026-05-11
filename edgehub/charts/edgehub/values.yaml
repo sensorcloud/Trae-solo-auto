@@ -1,0 +1,177 @@
+replicaCount: 2
+
+image:
+  repository: ghcr.io/edgehub
+  pullPolicy: IfNotPresent
+  tag: "latest"
+
+apiServer:
+  image: edgehub/api-server
+  replicaCount: 2
+  port: 8080
+  grpcPort: 9090
+  resources:
+    requests:
+      cpu: 500m
+      memory: 512Mi
+    limits:
+      cpu: 2000m
+      memory: 2Gi
+  livenessProbe:
+    initialDelaySeconds: 30
+    periodSeconds: 10
+  readinessProbe:
+    initialDelaySeconds: 5
+    periodSeconds: 5
+
+scheduler:
+  image: edgehub/scheduler
+  replicaCount: 2
+  port: 9090
+  resources:
+    requests:
+      cpu: 500m
+      memory: 512Mi
+    limits:
+      cpu: 2000m
+      memory: 2Gi
+
+nodeAgent:
+  image: edgehub/node-agent
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  tolerations: []
+  nodeSelector: {}
+
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+  hosts:
+    - host: api.edgehub.io
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: edgehub-tls
+      hosts:
+        - api.edgehub.io
+
+service:
+  type: ClusterIP
+  apiPort: 80
+  schedulerPort: 9090
+
+postgresql:
+  enabled: true
+  auth:
+    database: edgehub
+    username: edgehub
+  primary:
+    persistence:
+      size: 20Gi
+    resources:
+      requests:
+        cpu: 250m
+        memory: 256Mi
+      limits:
+        cpu: 1000m
+        memory: 1Gi
+
+redis:
+  enabled: true
+  auth:
+    enabled: false
+  master:
+    persistence:
+      size: 5Gi
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+
+prometheus:
+  enabled: true
+  server:
+    retention: 15d
+    resources:
+      requests:
+        cpu: 250m
+        memory: 512Mi
+      limits:
+        cpu: 1000m
+        memory: 2Gi
+
+grafana:
+  enabled: true
+  adminPassword: ""
+  persistence:
+    enabled: true
+    size: 1Gi
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+config:
+  mode: release
+  server:
+    port: 8080
+  database:
+    host: postgres
+    port: 5432
+    name: edgehub
+    user: edgehub
+    sslmode: disable
+  redis:
+    host: redis
+    port: 6379
+  jwt:
+    secret: ""
+    expiration: 24h
+  monitor:
+    enabled: true
+  scheduler:
+    enabled: true
+    type: kueue
+    maxRetry: 3
+
+securityContext:
+  fsGroup: 1000
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  fsGroup: 1000
+
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+
+autoscaling:
+  enabled: false
+  minReplicas: 2
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 70
+
+networkPolicy:
+  enabled: true
+
+serviceMonitor:
+  enabled: false
+  interval: 30s
+
+priorityClassName: ""
