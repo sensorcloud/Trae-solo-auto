@@ -6,7 +6,9 @@ import (
 
 	"github.com/edgehub/edgehub/internal/models"
 	"github.com/edgehub/edgehub/internal/repository"
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
+	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
 )
 
@@ -680,15 +682,31 @@ type JWTConfig struct {
 }
 
 func hashPassword(password string) string {
-	return password
+	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	if err != nil {
+		return ""
+	}
+	return string(hash)
 }
 
 func verifyPassword(password, hash string) bool {
-	return password == hash
+	err := bcrypt.CompareHashAndPassword([]byte(hash), []byte(password))
+	return err == nil
 }
 
 func generateJWT(userID uuid.UUID, email, role, secret string, expiration time.Duration) (string, error) {
-	return "token", nil
+	now := time.Now()
+	claims := jwt.MapClaims{
+		"sub":    userID.String(),
+		"email":  email,
+		"role":   role,
+		"iat":    now.Unix(),
+		"exp":    now.Add(expiration).Unix(),
+		"jti":    uuid.New().String(),
+	}
+
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	return token.SignedString([]byte(secret))
 }
 
 var ErrInvalidCredentials = &AuthError{Message: "invalid credentials"}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"os"
 	"sync"
 	"time"
 
@@ -286,7 +287,11 @@ func (a *NodeAgent) GetStatus() string {
 }
 
 func getHostname() string {
-	return "node-agent"
+	h, err := os.Hostname()
+	if err != nil {
+		return "unknown"
+	}
+	return h
 }
 
 type NodeInfo struct {

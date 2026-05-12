@@ -1,0 +1,50 @@
+mode: release
+
+server:
+  port: 8080
+  read_timeout: 30
+  write_timeout: 30
+  max_body_size: 10485760
+
+database:
+  host: postgres.edgehub-system.svc
+  port: 5432
+  name: edgehub
+  user: edgehub
+  password: ${DB_PASSWORD}
+  sslmode: disable
+  max_conn: 100
+
+redis:
+  host: redis.edgehub-system.svc
+  port: 6379
+  password: ${REDIS_PASSWORD}
+  db: 0
+  pool_size: 100
+
+jwt:
+  secret: ${JWT_SECRET}
+  expiration: 24h
+  refresh_exp: 720h
+
+monitor:
+  enabled: true
+  prometheus_url: http://prometheus.edgehub-system.svc:9090
+  grafana_url: http://grafana.edgehub-system.svc:3000
+  scrape_interval: 15s
+  retention_period: 15d
+
+scheduler:
+  enabled: true
+  type: kubeue
+  max_retry: 3
+  queue_size: 1000
+  workers: 10
+  pending_timeout: 300s
+
+kubernetes:
+  api_server: https://kubernetes.default.svc
+  in_cluster: true
+  qps: 50
+  burst: 100
+  timeout: 30s
