@@ -2,6 +2,100 @@
 
 所有重要的项目变更都将记录在此文件中。
 
+## [1.1.0] - 2026-05-12
+
+### 架构升级版本
+
+本版本根据架构分析报告（7.2 架构差距）进行了全面的功能增强，填补了多项架构空白。
+
+#### 新增功能
+
+##### 服务网格集成
+- **Linkerd/mTLS 支持**
+  - 服务网格配置管理
+  - 双向 TLS 证书管理
+  - 安全的微服务通信
+  - 支持 Linkerd 和 Istio 两种网格类型
+
+##### 多集群联邦管理
+- **Karmada 集成**
+  - 集群注册与发现
+  - 跨集群工作负载分发
+  - 多集群服务同步
+  - 联邦集群健康监控
+  - 统一的集群视图
+
+##### 批处理调度增强
+- **Kueue/Volcano 集成**
+  - 多队列优先级管理
+  - Gang 调度（All-or-Nothing）
+  - 公平调度支持
+  - 作业重试机制
+  - 批量任务优化调度
+
+##### GPU 虚拟化支持
+- **HAMi 集成**
+  - GPU 资源抽象层
+  - vGPU 虚拟化支持
+  - GPU 内存管理
+  - 多实例 GPU 共享
+  - GPU 调度优化
+
+##### Web UI 控制台
+- **React 前端应用**
+  - 仪表盘（集群/节点/Pod 概览）
+  - 集群管理界面
+  - 工作负载监控
+  - 批处理任务管理
+  - GPU 资源监控
+  - 系统设置面板
+  - JWT 认证登录
+
+#### 架构改进
+
+| 组件 | 改进项 | 说明 |
+|------|--------|------|
+| 服务网格 | Linkerd mTLS | 微服务安全通信 |
+| 多集群 | Karmada | 跨集群联邦管理 |
+| 调度器 | Kueue/Volcano | 企业级批处理 |
+| GPU | HAMi | 虚拟化 GPU 资源 |
+| 前端 | React Console | Web 控制台 |
+
+#### 代码质量
+
+- 修复类型不匹配错误
+- 移除未使用的导入
+- 修复 TLS 配置字段错误
+- 所有模块编译通过
+- 单元测试通过
+
+#### 升级指南
+
+##### API Server
+```yaml
+# config.yaml
+service_mesh:
+  enabled: true
+  type: linkerd
+  mTLS_enabled: true
+```
+
+##### Web Console
+```bash
+cd web
+npm install
+npm run dev
+```
+
+##### GPU 节点配置
+```yaml
+# 添加 HAMi 调度器
+spec:
+  schedulerName: hamischeduler
+```
+
+---
+
 ## [1.0.0] - 2026-05-12
 
 ### 首次发布 (MVP)
@@ -86,22 +180,6 @@
 - API 参考文档
 - 部署指南
 - CLI 使用手册
-
----
-
-## [Unreleased] - 开发中
-
-### 计划功能
-- Web UI 控制台
-- Python/Go/Java SDK
-- gRPC API 支持
-- Kueue 批处理调度集成
-- Volcano Gang 调度集成
-- HAMi GPU 虚拟化
-- Karmada 多集群管理
-- 智能价格预测
-- 竞价拍卖机制
-- 实时 WebSocket 推送
 
 ---
 

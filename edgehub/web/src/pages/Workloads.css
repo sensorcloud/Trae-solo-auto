@@ -1,0 +1,51 @@
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.data-table th,
+.data-table td {
+  padding: 0.75rem;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+}
+
+.data-table th {
+  font-weight: 600;
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  background-color: #f8fafc;
+}
+
+.data-table td {
+  font-size: 0.875rem;
+}
+
+.font-medium {
+  font-weight: 500;
+}
+
+.type-badge {
+  display: inline-block;
+  padding: 0.25rem 0.5rem;
+  background-color: #e2e8f0;
+  border-radius: 0.25rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.status-text {
+  font-weight: 500;
+}
+
+.status-text.running {
+  color: var(--success);
+}
+
+.status-text.pending {
+  color: var(--warning);
+}
+
+.status-text.failed {
+  color: var(--danger);
+}
