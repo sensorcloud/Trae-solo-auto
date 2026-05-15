@@ -1,0 +1,591 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agent 管理 - EdgeAgent-Hub</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --bg-primary: #0a0a0f;
+            --bg-secondary: #12121a;
+            --bg-tertiary: #1a1a24;
+            --text-primary: #ffffff;
+            --text-secondary: #8b8b9a;
+            --text-tertiary: #5a5a6e;
+            --accent-primary: #3b82f6;
+            --accent-secondary: #60a5fa;
+            --accent-agent: #f59e0b;
+            --accent-compute: #8b5cf6;
+            --border-color: #2a2a3a;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --error: #ef4444;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            line-height: 1.6;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 32px;
+        }
+
+        .header {
+            margin-bottom: 32px;
+        }
+
+        .header h1 {
+            font-size: 32px;
+            font-weight: 700;
+            margin-bottom: 8px;
+        }
+
+        .header p {
+            color: var(--text-secondary);
+        }
+
+        .nav-link {
+            color: var(--accent-primary);
+            text-decoration: none;
+            margin-right: 16px;
+            font-size: 14px;
+        }
+
+        .nav-link:hover {
+            text-decoration: underline;
+        }
+
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 20px;
+            margin-bottom: 32px;
+        }
+
+        .metric-card {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 24px;
+        }
+
+        .metric-label {
+            font-size: 14px;
+            color: var(--text-secondary);
+            margin-bottom: 12px;
+        }
+
+        .metric-value {
+            font-size: 32px;
+            font-weight: 700;
+            color: var(--accent-agent);
+            margin-bottom: 8px;
+        }
+
+        .metric-change {
+            font-size: 13px;
+            color: var(--success);
+        }
+
+        .toolbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+            gap: 16px;
+        }
+
+        select, input {
+            padding: 10px 16px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            color: var(--text-primary);
+            font-size: 14px;
+        }
+
+        select:focus, input:focus {
+            outline: none;
+            border-color: var(--accent-agent);
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border-radius: 8px;
+            border: none;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            white-space: nowrap;
+        }
+
+        .btn-primary {
+            background: var(--accent-agent);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            opacity: 0.9;
+        }
+
+        .btn-secondary {
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+            border: 1px solid var(--border-color);
+        }
+
+        .btn-secondary:hover {
+            border-color: var(--accent-agent);
+        }
+
+        .agents-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+            gap: 20px;
+            margin-bottom: 32px;
+        }
+
+        .agent-card {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 24px;
+            transition: all 0.3s;
+        }
+
+        .agent-card:hover {
+            border-color: var(--accent-agent);
+            transform: translateY(-4px);
+        }
+
+        .agent-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 16px;
+        }
+
+        .agent-avatar {
+            width: 48px;
+            height: 48px;
+            border-radius: 12px;
+            background: linear-gradient(135deg, var(--accent-agent), var(--accent-primary));
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+        }
+
+        .agent-info {
+            flex: 1;
+            margin-left: 16px;
+        }
+
+        .agent-name {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+
+        .agent-type {
+            font-size: 13px;
+            color: var(--text-secondary);
+        }
+
+        .agent-badge {
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        .agent-badge.running {
+            background: rgba(16, 185, 129, 0.1);
+            color: var(--success);
+        }
+
+        .agent-badge.stopped {
+            background: rgba(239, 68, 68, 0.1);
+            color: var(--error);
+        }
+
+        .agent-badge.pending {
+            background: rgba(245, 158, 11, 0.1);
+            color: var(--warning);
+        }
+
+        .agent-stats {
+            margin-bottom: 20px;
+        }
+
+        .stat-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .stat-item:last-child {
+            border-bottom: none;
+        }
+
+        .stat-label {
+            font-size: 13px;
+            color: var(--text-secondary);
+        }
+
+        .stat-value {
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        .agent-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .btn-small {
+            padding: 6px 16px;
+            border-radius: 6px;
+            border: none;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-small.primary {
+            background: var(--accent-agent);
+            color: white;
+        }
+
+        .btn-small.secondary {
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+            border: 1px solid var(--border-color);
+        }
+
+        .tabs {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 24px;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 16px;
+        }
+
+        .tab {
+            padding: 12px 24px;
+            border-radius: 8px;
+            background: transparent;
+            color: var(--text-secondary);
+            border: 1px solid var(--border-color);
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+
+        .tab:hover {
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+        }
+
+        .tab.active {
+            background: var(--accent-agent);
+            color: white;
+            border-color: var(--accent-agent);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <a href="index.html" class="nav-link">← 返回仪表盘</a>
+            <h1>🤖 Agent 管理</h1>
+            <p>管理 AI Agent 运行时和执行任务</p>
+        </header>
+
+        <div class="metrics-grid">
+            <div class="metric-card">
+                <div class="metric-label">活跃 Agent</div>
+                <div class="metric-value">156</div>
+                <div class="metric-change">↑ 12.5% 较上周</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-label">运行中</div>
+                <div class="metric-value">124</div>
+                <div class="metric-change">正常运行</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-label">今日执行</div>
+                <div class="metric-value">1,284</div>
+                <div class="metric-change">成功率 99.2%</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-label">平均执行时间</div>
+                <div class="metric-value">2.3s</div>
+                <div class="metric-change">↓ 0.5s 优化</div>
+            </div>
+        </div>
+
+        <div class="tabs">
+            <button class="tab active">全部 Agent</button>
+            <button class="tab">运行中</button>
+            <button class="tab">已停止</button>
+            <button class="tab">待执行</button>
+        </div>
+
+        <div class="toolbar">
+            <div>
+                <select id="runtimeFilter">
+                    <option value="">全部运行时</option>
+                    <option value="docker">Docker</option>
+                    <option value="kubernetes">Kubernetes</option>
+                    <option value="sandbox">沙箱</option>
+                </select>
+            </div>
+            <input type="text" placeholder="搜索 Agent 名称...">
+            <button class="btn btn-primary">+ 创建 Agent</button>
+        </div>
+
+        <div class="agents-grid">
+            <div class="agent-card">
+                <div class="agent-header">
+                    <div class="agent-avatar">🤖</div>
+                    <div class="agent-info">
+                        <div class="agent-name">数据分析 Agent</div>
+                        <div class="agent-type">数据分析 · Docker</div>
+                    </div>
+                    <span class="agent-badge running">运行中</span>
+                </div>
+                <div class="agent-stats">
+                    <div class="stat-item">
+                        <span class="stat-label">Agent ID</span>
+                        <span class="stat-value">agent-001</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">运行时</span>
+                        <span class="stat-value">Docker</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">总执行次数</span>
+                        <span class="stat-value">2,345</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">最后执行</span>
+                        <span class="stat-value">2 分钟前</span>
+                    </div>
+                </div>
+                <div class="agent-actions">
+                    <button class="btn-small secondary">详情</button>
+                    <button class="btn-small primary">执行</button>
+                </div>
+            </div>
+
+            <div class="agent-card">
+                <div class="agent-header">
+                    <div class="agent-avatar">📊</div>
+                    <div class="agent-info">
+                        <div class="agent-name">报表生成 Agent</div>
+                        <div class="agent-type">报表生成 · Kubernetes</div>
+                    </div>
+                    <span class="agent-badge running">运行中</span>
+                </div>
+                <div class="agent-stats">
+                    <div class="stat-item">
+                        <span class="stat-label">Agent ID</span>
+                        <span class="stat-value">agent-002</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">运行时</span>
+                        <span class="stat-value">Kubernetes</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">总执行次数</span>
+                        <span class="stat-value">1,892</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">最后执行</span>
+                        <span class="stat-value">5 分钟前</span>
+                    </div>
+                </div>
+                <div class="agent-actions">
+                    <button class="btn-small secondary">详情</button>
+                    <button class="btn-small primary">执行</button>
+                </div>
+            </div>
+
+            <div class="agent-card">
+                <div class="agent-header">
+                    <div class="agent-avatar">🔍</div>
+                    <div class="agent-info">
+                        <div class="agent-name">智能搜索 Agent</div>
+                        <div class="agent-type">信息检索 · 沙箱</div>
+                    </div>
+                    <span class="agent-badge pending">待执行</span>
+                </div>
+                <div class="agent-stats">
+                    <div class="stat-item">
+                        <span class="stat-label">Agent ID</span>
+                        <span class="stat-value">agent-003</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">运行时</span>
+                        <span class="stat-value">沙箱</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">总执行次数</span>
+                        <span class="stat-value">956</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">最后执行</span>
+                        <span class="stat-value">1 小时前</span>
+                    </div>
+                </div>
+                <div class="agent-actions">
+                    <button class="btn-small secondary">详情</button>
+                    <button class="btn-small primary">执行</button>
+                </div>
+            </div>
+
+            <div class="agent-card">
+                <div class="agent-header">
+                    <div class="agent-avatar">⚡</div>
+                    <div class="agent-info">
+                        <div class="agent-name">能源调度 Agent</div>
+                        <div class="agent-type">智能调度 · Kubernetes</div>
+                    </div>
+                    <span class="agent-badge stopped">已停止</span>
+                </div>
+                <div class="agent-stats">
+                    <div class="stat-item">
+                        <span class="stat-label">Agent ID</span>
+                        <span class="stat-value">agent-004</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">运行时</span>
+                        <span class="stat-value">Kubernetes</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">总执行次数</span>
+                        <span class="stat-value">3,421</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">最后执行</span>
+                        <span class="stat-value">2 小时前</span>
+                    </div>
+                </div>
+                <div class="agent-actions">
+                    <button class="btn-small secondary">详情</button>
+                    <button class="btn-small primary">启动</button>
+                </div>
+            </div>
+
+            <div class="agent-card">
+                <div class="agent-header">
+                    <div class="agent-avatar">🌐</div>
+                    <div class="agent-info">
+                        <div class="agent-name">Web 抓取 Agent</div>
+                        <div class="agent-type">数据采集 · 沙箱</div>
+                    </div>
+                    <span class="agent-badge running">运行中</span>
+                </div>
+                <div class="agent-stats">
+                    <div class="stat-item">
+                        <span class="stat-label">Agent ID</span>
+                        <span class="stat-value">agent-005</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">运行时</span>
+                        <span class="stat-value">沙箱</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">总执行次数</span>
+                        <span class="stat-value">1,203</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">最后执行</span>
+                        <span class="stat-value">3 分钟前</span>
+                    </div>
+                </div>
+                <div class="agent-actions">
+                    <button class="btn-small secondary">详情</button>
+                    <button class="btn-small primary">执行</button>
+                </div>
+            </div>
+
+            <div class="agent-card">
+                <div class="agent-header">
+                    <div class="agent-avatar">🤝</div>
+                    <div class="agent-info">
+                        <div class="agent-name">协作协调 Agent</div>
+                        <div class="agent-type">多 Agent 协作 · Docker</div>
+                    </div>
+                    <span class="agent-badge running">运行中</span>
+                </div>
+                <div class="agent-stats">
+                    <div class="stat-item">
+                        <span class="stat-label">Agent ID</span>
+                        <span class="stat-value">agent-006</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">运行时</span>
+                        <span class="stat-value">Docker</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">总执行次数</span>
+                        <span class="stat-value">856</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">最后执行</span>
+                        <span class="stat-value">8 分钟前</span>
+                    </div>
+                </div>
+                <div class="agent-actions">
+                    <button class="btn-small secondary">详情</button>
+                    <button class="btn-small primary">执行</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const tabs = document.querySelectorAll('.tab');
+        tabs.forEach(tab => {
+            tab.addEventListener('click', function() {
+                tabs.forEach(t => t.classList.remove('active'));
+                this.classList.add('active');
+            });
+        });
+
+        async function loadAgents() {
+            try {
+                const response = await fetch('/api/v1/agents', {
+                    headers: {
+                        'Authorization': 'Bearer ' + localStorage.getItem('token')
+                    }
+                });
+                const result = await response.json();
+                console.log('Loaded agents:', result);
+            } catch (error) {
+                console.log('API ready, waiting for backend connection');
+            }
+        }
+
+        loadAgents();
+    </script>
+</body>
+</html>

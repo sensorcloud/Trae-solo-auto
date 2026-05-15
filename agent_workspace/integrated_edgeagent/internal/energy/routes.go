@@ -27,4 +27,16 @@ func SetupRoutes(r *gin.RouterGroup, logger *zap.Logger) {
 		storage.POST("/:id/charge", chargeStorageHandler)
 		storage.POST("/:id/discharge", dischargeStorageHandler)
 	}
+
+	vpp := r.Group("/vpp")
+	vpp.Use(authMiddleware())
+	{
+		vpp.POST("", createVPPHandler)
+		vpp.GET("", listVPPsHandler)
+		vpp.GET("/:id", getVPPHandler)
+		vpp.PUT("/:id", updateVPPHandler)
+		vpp.DELETE("/:id", deleteVPPHandler)
+		vpp.POST("/:id/dispatch", dispatchVPPHandler)
+		vpp.GET("/:id/capacity", getVPPCapacityHandler)
+	}
 }

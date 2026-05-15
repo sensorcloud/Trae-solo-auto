@@ -21,6 +21,7 @@ func AutoMigrate(db *gorm.DB) error {
 		&market.Order{},
 		&energy.PowerSource{},
 		&energy.Storage{},
+		&energy.VirtualPowerPlant{},
 		&coordination.ScheduleHistory{},
 		&iot.Device{},
 		&iot.Telemetry{},

@@ -1,0 +1,614 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>电源管理 - EdgeAgent-Hub</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --bg-primary: #0a0a0f;
+            --bg-secondary: #12121a;
+            --bg-tertiary: #1a1a24;
+            --text-primary: #ffffff;
+            --text-secondary: #8b8b9a;
+            --text-tertiary: #5a5a6e;
+            --accent-primary: #3b82f6;
+            --accent-secondary: #60a5fa;
+            --accent-energy: #10b981;
+            --accent-compute: #8b5cf6;
+            --accent-agent: #f59e0b;
+            --border-color: #2a2a3a;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --error: #ef4444;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            line-height: 1.6;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 32px;
+        }
+
+        .header {
+            margin-bottom: 32px;
+        }
+
+        .header h1 {
+            font-size: 32px;
+            font-weight: 700;
+            margin-bottom: 8px;
+        }
+
+        .header p {
+            color: var(--text-secondary);
+        }
+
+        .toolbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+            gap: 16px;
+        }
+
+        .filters {
+            display: flex;
+            gap: 12px;
+            flex: 1;
+        }
+
+        select, input {
+            padding: 10px 16px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            color: var(--text-primary);
+            font-size: 14px;
+        }
+
+        select:focus, input:focus {
+            outline: none;
+            border-color: var(--accent-primary);
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border-radius: 8px;
+            border: none;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            white-space: nowrap;
+        }
+
+        .btn-primary {
+            background: var(--accent-primary);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: var(--accent-secondary);
+        }
+
+        .btn-secondary {
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+            border: 1px solid var(--border-color);
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+            margin-bottom: 32px;
+        }
+
+        .stat-card {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 20px;
+        }
+
+        .stat-label {
+            font-size: 13px;
+            color: var(--text-secondary);
+            margin-bottom: 8px;
+        }
+
+        .stat-value {
+            font-size: 28px;
+            font-weight: 700;
+        }
+
+        .stat-change {
+            font-size: 12px;
+            color: var(--success);
+            margin-top: 4px;
+        }
+
+        .table-container {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            overflow: hidden;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th {
+            text-align: left;
+            padding: 16px 20px;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--text-tertiary);
+            border-bottom: 1px solid var(--border-color);
+            background: var(--bg-tertiary);
+        }
+
+        td {
+            padding: 16px 20px;
+            font-size: 14px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        tr:last-child td {
+            border-bottom: none;
+        }
+
+        tr:hover {
+            background: var(--bg-tertiary);
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        .status-badge.active {
+            background: rgba(16, 185, 129, 0.1);
+            color: var(--success);
+        }
+
+        .status-badge.pending {
+            background: rgba(245, 158, 11, 0.1);
+            color: var(--warning);
+        }
+
+        .status-badge.error {
+            background: rgba(239, 68, 68, 0.1);
+            color: var(--error);
+        }
+
+        .type-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        .type-badge.solar {
+            background: rgba(245, 158, 11, 0.1);
+            color: var(--accent-agent);
+        }
+
+        .type-badge.wind {
+            background: rgba(59, 130, 246, 0.1);
+            color: var(--accent-primary);
+        }
+
+        .type-badge.storage {
+            background: rgba(139, 92, 246, 0.1);
+            color: var(--accent-compute);
+        }
+
+        .type-badge.gas {
+            background: rgba(239, 68, 68, 0.1);
+            color: var(--error);
+        }
+
+        .action-btn {
+            padding: 6px 12px;
+            border-radius: 6px;
+            border: 1px solid var(--border-color);
+            background: transparent;
+            color: var(--text-primary);
+            font-size: 13px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .action-btn:hover {
+            background: var(--accent-primary);
+            border-color: var(--accent-primary);
+        }
+
+        .pagination {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 8px;
+            padding: 20px;
+            border-top: 1px solid var(--border-color);
+        }
+
+        .page-btn {
+            width: 36px;
+            height: 36px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            background: transparent;
+            color: var(--text-primary);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .page-btn:hover, .page-btn.active {
+            background: var(--accent-primary);
+            border-color: var(--accent-primary);
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal.show {
+            display: flex;
+        }
+
+        .modal-content {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 32px;
+            max-width: 600px;
+            width: 90%;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+        }
+
+        .modal-title {
+            font-size: 24px;
+            font-weight: 600;
+        }
+
+        .close-btn {
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: none;
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 20px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-label {
+            display: block;
+            font-size: 14px;
+            font-weight: 500;
+            margin-bottom: 8px;
+            color: var(--text-secondary);
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 10px 16px;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            color: var(--text-primary);
+            font-size: 14px;
+        }
+
+        .form-input:focus {
+            outline: none;
+            border-color: var(--accent-primary);
+        }
+
+        .modal-footer {
+            display: flex;
+            justify-content: flex-end;
+            gap: 12px;
+            margin-top: 24px;
+        }
+
+        .nav-link {
+            color: var(--accent-primary);
+            text-decoration: none;
+            margin-right: 16px;
+            font-size: 14px;
+        }
+
+        .nav-link:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <a href="index.html" class="nav-link">← 返回仪表盘</a>
+            <h1>⚡ 电源管理</h1>
+            <p>管理分布式能源资源，监控电源状态</p>
+        </header>
+
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-label">总装机容量</div>
+                <div class="stat-value">142.5 MW</div>
+                <div class="stat-change">↑ 15.2% 本月</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">当前输出</div>
+                <div class="stat-value">98.3 MW</div>
+                <div class="stat-change">负载率 69%</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">绿电占比</div>
+                <div class="stat-value">82%</div>
+                <div class="stat-change">↑ 5.8% 本月</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">今日发电量</div>
+                <div class="stat-value">2,341 MWh</div>
+                <div class="stat-change">节约成本 ¥12,850</div>
+            </div>
+        </div>
+
+        <div class="toolbar">
+            <div class="filters">
+                <select id="typeFilter">
+                    <option value="">全部类型</option>
+                    <option value="solar">太阳能</option>
+                    <option value="wind">风能</option>
+                    <option value="storage">储能</option>
+                    <option value="gas">天然气</option>
+                </select>
+                <select id="statusFilter">
+                    <option value="">全部状态</option>
+                    <option value="active">运行中</option>
+                    <option value="pending">待机</option>
+                    <option value="error">故障</option>
+                </select>
+                <input type="text" id="searchInput" placeholder="搜索电源名称..." style="flex: 1;">
+            </div>
+            <button class="btn btn-primary" onclick="showModal()">+ 添加电源</button>
+        </div>
+
+        <div class="table-container">
+            <table id="powerTable">
+                <thead>
+                    <tr>
+                        <th>名称</th>
+                        <th>类型</th>
+                        <th>容量</th>
+                        <th>输出功率</th>
+                        <th>单价</th>
+                        <th>碳强度</th>
+                        <th>位置</th>
+                        <th>状态</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>光伏电站-A区</td>
+                        <td><span class="type-badge solar">☀️ 太阳能</span></td>
+                        <td>50 MW</td>
+                        <td>42 MW</td>
+                        <td>¥0.35/kWh</td>
+                        <td>15 gCO2/kWh</td>
+                        <td>内蒙古</td>
+                        <td><span class="status-badge active">运行中</span></td>
+                        <td>
+                            <button class="action-btn" onclick="viewDetails(1)">详情</button>
+                            <button class="action-btn" onclick="editItem(1)">编辑</button>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>风力发电-B区</td>
+                        <td><span class="type-badge wind">🌬️ 风能</span></td>
+                        <td>30 MW</td>
+                        <td>25 MW</td>
+                        <td>¥0.32/kWh</td>
+                        <td>12 gCO2/kWh</td>
+                        <td>甘肃</td>
+                        <td><span class="status-badge active">运行中</span></td>
+                        <td>
+                            <button class="action-btn" onclick="viewDetails(2)">详情</button>
+                            <button class="action-btn" onclick="editItem(2)">编辑</button>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>储能站-C区</td>
+                        <td><span class="type-badge storage">🔋 储能</span></td>
+                        <td>100 MWh</td>
+                        <td>20 MW</td>
+                        <td>¥0.50/kWh</td>
+                        <td>-</td>
+                        <td>江苏</td>
+                        <td><span class="status-badge active">运行中</span></td>
+                        <td>
+                            <button class="action-btn" onclick="viewDetails(3)">详情</button>
+                            <button class="action-btn" onclick="editItem(3)">编辑</button>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>燃气轮机-D区</td>
+                        <td><span class="type-badge gas">🔥 天然气</span></td>
+                        <td>20 MW</td>
+                        <td>0 MW</td>
+                        <td>¥0.65/kWh</td>
+                        <td>450 gCO2/kWh</td>
+                        <td>广东</td>
+                        <td><span class="status-badge pending">待机</span></td>
+                        <td>
+                            <button class="action-btn" onclick="viewDetails(4)">详情</button>
+                            <button class="action-btn" onclick="editItem(4)">编辑</button>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+            <div class="pagination">
+                <button class="page-btn">«</button>
+                <button class="page-btn active">1</button>
+                <button class="page-btn">2</button>
+                <button class="page-btn">3</button>
+                <button class="page-btn">»</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal" id="addModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title">添加电源</h2>
+                <button class="close-btn" onclick="hideModal()">×</button>
+            </div>
+            <form id="powerForm">
+                <div class="form-group">
+                    <label class="form-label">电源名称 *</label>
+                    <input type="text" class="form-input" name="name" required placeholder="例如：光伏电站-E区">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">电源类型 *</label>
+                    <select class="form-input" name="type" required>
+                        <option value="">请选择</option>
+                        <option value="solar">太阳能</option>
+                        <option value="wind">风能</option>
+                        <option value="storage">储能</option>
+                        <option value="gas">天然气</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">容量 (MW) *</label>
+                    <input type="number" class="form-input" name="capacity" required step="0.1" placeholder="例如：25.5">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">输出功率 (MW)</label>
+                    <input type="number" class="form-input" name="output" step="0.1" placeholder="例如：20.0">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">单价 (¥/kWh) *</label>
+                    <input type="number" class="form-input" name="price" required step="0.01" placeholder="例如：0.35">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">位置 *</label>
+                    <input type="text" class="form-input" name="location" required placeholder="例如：新疆乌鲁木齐">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">描述</label>
+                    <textarea class="form-input" name="description" rows="3" placeholder="电源描述信息"></textarea>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" onclick="hideModal()">取消</button>
+                    <button type="submit" class="btn btn-primary">保存</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        function showModal() {
+            document.getElementById('addModal').classList.add('show');
+        }
+
+        function hideModal() {
+            document.getElementById('addModal').classList.remove('show');
+        }
+
+        function viewDetails(id) {
+            alert('查看电源 #' + id + ' 的详细信息');
+        }
+
+        function editItem(id) {
+            alert('编辑电源 #' + id);
+        }
+
+        document.getElementById('powerForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const formData = new FormData(this);
+            const data = Object.fromEntries(formData);
+            console.log('Form submitted:', data);
+            alert('电源创建成功！');
+            hideModal();
+        });
+
+        document.getElementById('searchInput').addEventListener('input', function(e) {
+            const query = e.target.value.toLowerCase();
+            const rows = document.querySelectorAll('#powerTable tbody tr');
+            rows.forEach(row => {
+                const text = row.textContent.toLowerCase();
+                row.style.display = text.includes(query) ? '' : 'none';
+            });
+        });
+
+        async function loadPowerSources() {
+            try {
+                const response = await fetch('/api/v1/energy/power', {
+                    headers: {
+                        'Authorization': 'Bearer ' + localStorage.getItem('token')
+                    }
+                });
+                const result = await response.json();
+                console.log('Loaded power sources:', result);
+            } catch (error) {
+                console.log('API ready, waiting for backend connection');
+            }
+        }
+
+        loadPowerSources();
+    </script>
+</body>
+</html>

@@ -395,3 +395,254 @@ func dischargeStorageHandler(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "放电成功", "data": storage.ToResponse()})
 }
+
+type CreateVPPRequest struct {
+	Name            string `json:"name" validate:"required,max=100"`
+	Description     string `json:"description" validate:"max=500"`
+	Type            string `json:"type" validate:"required,oneof=aggregate demand_response emergency"`
+	ControlStrategy string `json:"control_strategy"`
+}
+
+type UpdateVPPRequest struct {
+	Name            string `json:"name" validate:"omitempty,max=100"`
+	Description     string `json:"description" validate:"omitempty,max=500"`
+	ControlStrategy string `json:"control_strategy"`
+}
+
+type DispatchVPPRequest struct {
+	TargetPower float64 `json:"target_power" validate:"required"`
+	Duration    int     `json:"duration" validate:"required,min=1"`
+}
+
+func createVPPHandler(c *gin.Context) {
+	userID := c.GetUint("user_id")
+	var req CreateVPPRequest
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 1001, "message": "参数校验失败"})
+		return
+	}
+
+	if err := validate.Struct(req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 1001, "message": "参数校验失败", "data": err.Error()})
+		return
+	}
+
+	vpp := VirtualPowerPlant{
+		UserID:          userID,
+		Name:            req.Name,
+		Description:     req.Description,
+		Type:            req.Type,
+		ControlStrategy: req.ControlStrategy,
+	}
+
+	if err := db.Create(&vpp).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"code": 3001, "message": "服务异常"})
+		return
+	}
+
+	c.JSON(http.StatusCreated, gin.H{"code": 0, "message": "VPP创建成功", "data": vpp.ToResponse()})
+}
+
+func listVPPsHandler(c *gin.Context) {
+	userID := c.GetUint("user_id")
+	var vpps []VirtualPowerPlant
+
+	if err := db.Where("user_id = ?", userID).Find(&vpps).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"code": 3001, "message": "服务异常"})
+		return
+	}
+
+	response := make([]VPPResponse, len(vpps))
+	for i, vpp := range vpps {
+		response[i] = vpp.ToResponse()
+	}
+
+	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "success", "data": response})
+}
+
+func getVPPHandler(c *gin.Context) {
+	userID := c.GetUint("user_id")
+	vppID, err := strconv.ParseUint(c.Param("id"), 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 1001, "message": "参数错误"})
+		return
+	}
+
+	var vpp VirtualPowerPlant
+	if err := db.Where("id = ? AND user_id = ?", vppID, userID).First(&vpp).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			c.JSON(http.StatusNotFound, gin.H{"code": 2001, "message": "VPP不存在"})
+		} else {
+			c.JSON(http.StatusInternalServerError, gin.H{"code": 3001, "message": "服务异常"})
+		}
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "success", "data": vpp.ToResponse()})
+}
+
+func updateVPPHandler(c *gin.Context) {
+	userID := c.GetUint("user_id")
+	vppID, err := strconv.ParseUint(c.Param("id"), 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 1001, "message": "参数错误"})
+		return
+	}
+
+	var vpp VirtualPowerPlant
+	if err := db.Where("id = ? AND user_id = ?", vppID, userID).First(&vpp).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			c.JSON(http.StatusNotFound, gin.H{"code": 2001, "message": "VPP不存在"})
+		} else {
+			c.JSON(http.StatusInternalServerError, gin.H{"code": 3001, "message": "服务异常"})
+		}
+		return
+	}
+
+	var req UpdateVPPRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 1001, "message": "参数校验失败"})
+		return
+	}
+
+	if err := validate.Struct(req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 1001, "message": "参数校验失败", "data": err.Error()})
+		return
+	}
+
+	if req.Name != "" {
+		vpp.Name = req.Name
+	}
+	if req.Description != "" {
+		vpp.Description = req.Description
+	}
+	if req.ControlStrategy != "" {
+		vpp.ControlStrategy = req.ControlStrategy
+	}
+
+	if err := db.Save(&vpp).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"code": 3001, "message": "服务异常"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "更新成功", "data": vpp.ToResponse()})
+}
+
+func deleteVPPHandler(c *gin.Context) {
+	userID := c.GetUint("user_id")
+	vppID, err := strconv.ParseUint(c.Param("id"), 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 1001, "message": "参数错误"})
+		return
+	}
+
+	if err := db.Where("id = ? AND user_id = ?", vppID, userID).Delete(&VirtualPowerPlant{}).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"code": 3001, "message": "服务异常"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "删除成功"})
+}
+
+func dispatchVPPHandler(c *gin.Context) {
+	userID := c.GetUint("user_id")
+	vppID, err := strconv.ParseUint(c.Param("id"), 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 1001, "message": "参数错误"})
+		return
+	}
+
+	var vpp VirtualPowerPlant
+	if err := db.Where("id = ? AND user_id = ?", vppID, userID).First(&vpp).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			c.JSON(http.StatusNotFound, gin.H{"code": 2001, "message": "VPP不存在"})
+		} else {
+			c.JSON(http.StatusInternalServerError, gin.H{"code": 3001, "message": "服务异常"})
+		}
+		return
+	}
+
+	var req DispatchVPPRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 1001, "message": "参数校验失败"})
+		return
+	}
+
+	if err := validate.Struct(req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 1001, "message": "参数校验失败", "data": err.Error()})
+		return
+	}
+
+	vpp.TotalCapacity = req.TargetPower
+	if err := db.Save(&vpp).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"code": 3001, "message": "服务异常"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"code":    0,
+		"message": "调度成功",
+		"data": gin.H{
+			"vpp_id":       vpp.ID,
+			"target_power": req.TargetPower,
+			"duration":     req.Duration,
+			"status":       "dispatched",
+		},
+	})
+}
+
+func getVPPCapacityHandler(c *gin.Context) {
+	userID := c.GetUint("user_id")
+	vppID, err := strconv.ParseUint(c.Param("id"), 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 1001, "message": "参数错误"})
+		return
+	}
+
+	var vpp VirtualPowerPlant
+	if err := db.Where("id = ? AND user_id = ?", vppID, userID).First(&vpp).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			c.JSON(http.StatusNotFound, gin.H{"code": 2001, "message": "VPP不存在"})
+		} else {
+			c.JSON(http.StatusInternalServerError, gin.H{"code": 3001, "message": "服务异常"})
+		}
+		return
+	}
+
+	var powerSources []PowerSource
+	if err := db.Where("user_id = ?", userID).Find(&powerSources).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"code": 3001, "message": "服务异常"})
+		return
+	}
+
+	var storages []Storage
+	if err := db.Where("user_id = ?", userID).Find(&storages).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"code": 3001, "message": "服务异常"})
+		return
+	}
+
+	totalPower := 0.0
+	for _, ps := range powerSources {
+		totalPower += ps.OutputPower
+	}
+
+	totalStorage := 0.0
+	for _, s := range storages {
+		totalStorage += s.CurrentSOC
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"code":    0,
+		"message": "success",
+		"data": gin.H{
+			"vpp_id":         vpp.ID,
+			"vpp_name":       vpp.Name,
+			"total_power":    totalPower,
+			"total_storage":  totalStorage,
+			"available_power": vpp.TotalCapacity,
+			"power_sources":  len(powerSources),
+			"storage_devices": len(storages),
+		},
+	})
+}
