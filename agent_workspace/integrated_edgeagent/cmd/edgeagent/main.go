@@ -19,6 +19,7 @@ import (
 	"gitcode.com/ywtech/EdgeAgent-Hub/pkg/config"
 	"gitcode.com/ywtech/EdgeAgent-Hub/pkg/database"
 	"gitcode.com/ywtech/EdgeAgent-Hub/pkg/logging"
+	"gitcode.com/ywtech/EdgeAgent-Hub/pkg/middleware"
 )
 
 func main() {
@@ -44,6 +45,8 @@ func main() {
 	}
 
 	database.InitModules(db)
+
+	middleware.InitJWTSecrets()
 
 	r := gin.Default()
 

@@ -2,11 +2,9 @@ package user
 
 import (
 	"net/http"
-	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/golang-jwt/jwt/v5"
-	"github.com/spf13/viper"
+	"gitcode.com/ywtech/EdgeAgent-Hub/pkg/middleware"
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
 )
@@ -103,26 +101,25 @@ func refreshHandler(c *gin.Context) {
 		return
 	}
 
-	token, err := jwt.Parse(refreshToken, func(token *jwt.Token) (interface{}, error) {
-		return []byte(viper.GetString("jwt.secret")), nil
-	})
-
-	if err != nil || !token.Valid {
+	claims, err := middleware.ValidateRefreshToken(refreshToken)
+	if err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"code": 1003, "message": "Refresh Token无效"})
 		return
 	}
 
-	claims, ok := token.Claims.(jwt.MapClaims)
-	if !ok {
-		c.JSON(http.StatusUnauthorized, gin.H{"code": 1003, "message": "Refresh Token无效"})
+	var user User
+	if err := db.First(&user, claims.UserID).Error; err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"code": 1003, "message": "用户不存在"})
 		return
 	}
 
-	userID := uint(claims["user_id"].(float64))
-	email := claims["email"].(string)
-	role := claims["role"].(string)
+	newAccessToken, err := middleware.GenerateAccessToken(user.ID, user.Email, user.Role)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"code": 3001, "message": "服务异常"})
+		return
+	}
 
-	newAccessToken, newRefreshToken, expireAt, err := generateTokens(userID, email, role)
+	newRefreshToken, err := middleware.GenerateRefreshToken(user.ID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"code": 3001, "message": "服务异常"})
 		return
@@ -131,43 +128,22 @@ func refreshHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"code": 0, "message": "Token刷新成功", "data": TokenResponse{
 		AccessToken:  newAccessToken,
 		RefreshToken: newRefreshToken,
-		ExpireAt:     expireAt,
+		ExpireAt:     0,
 	}})
 }
 
 func generateTokens(userID uint, email, role string) (string, string, int64, error) {
-	secret := viper.GetString("jwt.secret")
-	expireHours := viper.GetInt64("jwt.expire_hours")
-
-	expireAt := time.Now().Add(time.Hour * time.Duration(expireHours)).Unix()
-
-	accessClaims := jwt.MapClaims{
-		"user_id": userID,
-		"email":   email,
-		"role":    role,
-		"exp":     expireAt,
-	}
-
-	accessToken := jwt.NewWithClaims(jwt.SigningMethodHS256, accessClaims)
-	accessTokenString, err := accessToken.SignedString([]byte(secret))
+	accessToken, err := middleware.GenerateAccessToken(userID, email, role)
 	if err != nil {
 		return "", "", 0, err
 	}
 
-	refreshClaims := jwt.MapClaims{
-		"user_id": userID,
-		"email":   email,
-		"role":    role,
-		"exp":     time.Now().Add(time.Hour * 168).Unix(),
-	}
-
-	refreshToken := jwt.NewWithClaims(jwt.SigningMethodHS256, refreshClaims)
-	refreshTokenString, err := refreshToken.SignedString([]byte(secret))
+	refreshToken, err := middleware.GenerateRefreshToken(userID)
 	if err != nil {
 		return "", "", 0, err
 	}
 
-	return accessTokenString, refreshTokenString, expireAt, nil
+	return accessToken, refreshToken, 0, nil
 }
 
 func getUserHandler(c *gin.Context) {

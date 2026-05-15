@@ -7,10 +7,16 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/spf13/viper"
 )
 
-var jwtSecret = []byte("your-secret-key-change-in-production")
-var refreshSecret = []byte("refresh-secret-key-change-in-production")
+var jwtSecret []byte
+var refreshSecret []byte
+
+func InitJWTSecrets() {
+	jwtSecret = []byte(viper.GetString("jwt.secret"))
+	refreshSecret = []byte(viper.GetString("jwt.secret") + "-refresh")
+}
 
 type TokenType string
 
@@ -22,6 +28,7 @@ const (
 type Claims struct {
 	UserID uint   `json:"user_id"`
 	Email  string `json:"email"`
+	Role   string `json:"role"`
 	Type   TokenType `json:"type"`
 	jwt.RegisteredClaims
 }
@@ -31,10 +38,11 @@ type RefreshClaims struct {
 	jwt.RegisteredClaims
 }
 
-func GenerateAccessToken(userID uint, email string) (string, error) {
+func GenerateAccessToken(userID uint, email, role string) (string, error) {
 	claims := Claims{
 		UserID: userID,
 		Email:  email,
+		Role:   role,
 		Type:   AccessToken,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(24 * time.Hour)),
@@ -102,7 +110,7 @@ func RefreshAccessToken(refreshTokenString string) (string, error) {
 		return "", err
 	}
 
-	return GenerateAccessToken(claims.UserID, "")
+	return GenerateAccessToken(claims.UserID, "", "user")
 }
 
 func JWTAuthMiddleware() gin.HandlerFunc {

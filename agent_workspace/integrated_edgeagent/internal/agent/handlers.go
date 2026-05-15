@@ -3,8 +3,10 @@ package agent
 import (
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/gin-gonic/gin"
+	"gitcode.com/ywtech/EdgeAgent-Hub/pkg/middleware"
 	"gorm.io/gorm"
 )
 
@@ -16,12 +18,25 @@ func InitDB(database *gorm.DB) {
 
 func authMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		userID, exists := c.Get("user_id")
-		if !exists {
+		authHeader := c.GetHeader("Authorization")
+		if authHeader == "" {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"code": 1003, "message": "未授权，请先登录"})
 			return
 		}
-		c.Set("user_id", userID.(uint))
+
+		parts := strings.SplitN(authHeader, " ", 2)
+		if len(parts) != 2 || parts[0] != "Bearer" {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"code": 1003, "message": "Token格式错误"})
+			return
+		}
+
+		claims, err := middleware.ValidateAccessToken(parts[1])
+		if err != nil {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"code": 1003, "message": "Token无效或已过期"})
+			return
+		}
+
+		c.Set("user_id", claims.UserID)
 		c.Next()
 	}
 }
