@@ -7,7 +7,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 
-	"github.com/ywtech/edgeagent-hub/pkg/utils"
+	"gitcode.com/ywtech/EdgeAgent-Hub/pkg/utils"
 )
 
 var db *gorm.DB

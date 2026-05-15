@@ -5,7 +5,7 @@
 
 set -e
 
-REPO_URL="https://gitcode.com/ywtech/beta.git"
+REPO_URL="https://gitcode.com/ywtech/EdgeAgent-Hub.git"
 USERNAME="${1:-}"
 TOKEN="${2:-}"
 
@@ -17,7 +17,7 @@ if [ -z "$USERNAME" ] || [ -z "$TOKEN" ]; then
     exit 1
 fi
 
-AUTH_URL="https://${USERNAME}:${TOKEN}@gitcode.com/ywtech/beta.git"
+AUTH_URL="https://${USERNAME}:${TOKEN}@gitcode.com/ywtech/EdgeAgent-Hub.git"
 
 echo "正在推送代码到 ${REPO_URL} ..."
 
@@ -26,4 +26,4 @@ git push -u origin master --force
 
 echo ""
 echo "✅ 推送成功！"
-echo "仓库地址: https://gitcode.com/ywtech/beta"
+echo "仓库地址: https://gitcode.com/ywtech/EdgeAgent-Hub"

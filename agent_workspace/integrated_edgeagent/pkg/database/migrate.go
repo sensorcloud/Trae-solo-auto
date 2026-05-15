@@ -1,14 +1,14 @@
 package database
 
 import (
-	"github.com/ywtech/edgeagent-hub/internal/agent"
-	"github.com/ywtech/edgeagent-hub/internal/billing"
-	"github.com/ywtech/edgeagent-hub/internal/coordination"
-	"github.com/ywtech/edgeagent-hub/internal/energy"
-	"github.com/ywtech/edgeagent-hub/internal/iot"
-	"github.com/ywtech/edgeagent-hub/internal/market"
-	"github.com/ywtech/edgeagent-hub/internal/monitor"
-	"github.com/ywtech/edgeagent-hub/internal/user"
+	"gitcode.com/ywtech/EdgeAgent-Hub/internal/agent"
+	"gitcode.com/ywtech/EdgeAgent-Hub/internal/billing"
+	"gitcode.com/ywtech/EdgeAgent-Hub/internal/coordination"
+	"gitcode.com/ywtech/EdgeAgent-Hub/internal/energy"
+	"gitcode.com/ywtech/EdgeAgent-Hub/internal/iot"
+	"gitcode.com/ywtech/EdgeAgent-Hub/internal/market"
+	"gitcode.com/ywtech/EdgeAgent-Hub/internal/monitor"
+	"gitcode.com/ywtech/EdgeAgent-Hub/internal/user"
 
 	"gorm.io/gorm"
 )

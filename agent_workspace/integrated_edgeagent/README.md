@@ -1,78 +1,78 @@
 # EdgeAgent-Hub
 
-A distributed AI Agent platform for intelligent scheduling of computing and power resources.
+一个分布式 AI Agent 平台，用于计算资源和电力资源的智能调度。
 
-## Features
+## 功能特性
 
-- **AI Agent Runtime**: Secure sandboxed agent execution with multi-runtime support
-- **Compute Marketplace**: Resource publishing, order management, bidding system
-- **Energy Management**: Power monitoring, storage scheduling, VPP management
-- **Compute-Power Coordination**: Load prediction, multi-objective optimization
-- **IoT Services**: Device management, telemetry collection, protocol adaptation
-- **User Management**: Authentication, authorization, billing
-- **Monitoring & Alerting**: Metrics collection, alerting rules
+- **AI Agent 运行时**: 安全的沙箱式 Agent 执行，支持多运行时
+- **计算资源市场**: 资源发布、订单管理、竞价系统
+- **能源管理**: 电力监控、存储调度、VPP 管理
+- **算力协同调度**: 负载预测、多目标优化
+- **IoT 服务**: 设备管理、遥测采集、协议适配
+- **用户管理**: 身份认证、授权、账单管理
+- **监控与告警**: 指标采集、告警规则
 
-## Quick Start
+## 快速开始
 
-### Prerequisites
+### 前置要求
 
 - Go 1.21+
-- PostgreSQL or SQLite
-- Docker (optional)
+- PostgreSQL 或 SQLite
+- Docker (可选)
 
-### Local Development
+### 本地开发
 
 ```bash
-# Clone the repository
-git clone https://gitcode.com/ywtech/beta.git
-cd beta
+# 克隆仓库
+git clone https://gitcode.com/ywtech/EdgeAgent-Hub.git
+cd EdgeAgent-Hub
 
-# Install dependencies
+# 安装依赖
 go mod download
 
-# Build
+# 构建
 go build -o edgeagent ./cmd/edgeagent
 
-# Run
+# 运行
 ./edgeagent --config config/config-dev.yaml
 ```
 
-### Docker Deployment
+### Docker 部署
 
 ```bash
 docker-compose -f deploy/docker/docker-compose.yml up
 ```
 
-### Kubernetes Deployment
+### Kubernetes 部署
 
 ```bash
 helm install edgeagent-hub deploy/helm/edgeagent-hub
 ```
 
-## API Endpoints
+## API 端点
 
-| Module | Base Path | Description |
-|--------|-----------|-------------|
-| Auth | `/api/v1/auth` | User registration, login |
-| Agents | `/api/v1/agents` | Agent management |
-| Assets | `/api/v1/assets` | Compute resource listing |
-| Orders | `/api/v1/orders` | Order management |
-| Power | `/api/v1/power` | Power source management |
-| Storage | `/api/v1/storage` | Energy storage management |
-| Schedule | `/api/v1/schedule` | Coordination scheduling |
-| Devices | `/api/v1/devices` | IoT device management |
-| Bills | `/api/v1/bills` | Billing management |
-| Metrics | `/api/v1/metrics` | System metrics |
+| 模块 | 基础路径 | 描述 |
+|------|----------|------|
+| 认证 | `/api/v1/auth` | 用户注册、登录 |
+| Agents | `/api/v1/agents` | Agent 管理 |
+| 资源 | `/api/v1/assets` | 计算资源列表 |
+| 订单 | `/api/v1/orders` | 订单管理 |
+| 电力 | `/api/v1/power` | 电力源管理 |
+| 存储 | `/api/v1/storage` | 能源存储管理 |
+| 调度 | `/api/v1/schedule` | 协同调度 |
+| 设备 | `/api/v1/devices` | IoT 设备管理 |
+| 账单 | `/api/v1/bills` | 账单管理 |
+| 指标 | `/api/v1/metrics` | 系统指标 |
 
-## Architecture
+## 架构
 
-The platform follows a layered architecture:
+平台采用分层架构：
 
-- **User Layer**: Web Console, CLI, SDK, REST/gRPC API
-- **Orchestration Layer**: API Gateway, Authentication, Workflow Engine
-- **Capability Layer**: Agent Runtime, Marketplace, Energy, Coordination, IoT
-- **Infrastructure Layer**: Kubernetes, PostgreSQL, Kafka, Redis
+- **用户层**: Web 控制台、CLI、SDK、REST/gRPC API
+- **编排层**: API 网关、身份认证、工作流引擎
+- **能力层**: Agent 运行时、市场、能源、协同、IoT
+- **基础设施层**: Kubernetes、PostgreSQL、Kafka、Redis
 
-## License
+## 许可证
 
 MIT

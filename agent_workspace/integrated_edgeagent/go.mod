@@ -1,4 +1,4 @@
-module github.com/ywtech/edgeagent-hub
+module gitcode.com/ywtech/EdgeAgent-Hub
 
 go 1.21
 
