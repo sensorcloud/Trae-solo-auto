@@ -1,0 +1,166 @@
+{{- if .Values.coordinationEngine.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "edgehub.coordination.fullname" . }}-config
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "edgehub.coordination.labels" . | nindent 4 }}
+data:
+  config.yaml: |
+    server:
+      port: {{ .Values.coordinationEngine.port }}
+      grpcPort: {{ .Values.coordinationEngine.grpcPort }}
+    coordination:
+      optimizationHorizon: {{ .Values.coordinationEngine.config.optimizationHorizon }}
+      predictionHorizon: {{ .Values.coordinationEngine.config.predictionHorizon }}
+      schedulerType: {{ .Values.coordinationEngine.config.schedulerType }}
+      maxRetry: {{ .Values.coordinationEngine.config.maxRetry }}
+      queueSize: {{ .Values.coordinationEngine.config.queueSize }}
+      workers: {{ .Values.coordinationEngine.config.workers }}
+    priceOptimization:
+      enabled: {{ .Values.coordinationEngine.config.priceOptimization.enabled }}
+      priceThresholdHigh: {{ .Values.coordinationEngine.config.priceOptimization.priceThresholdHigh }}
+      priceThresholdLow: {{ .Values.coordinationEngine.config.priceOptimization.priceThresholdLow }}
+    carbonOptimization:
+      enabled: {{ .Values.coordinationEngine.config.carbonOptimization.enabled }}
+      maxCarbonIntensity: {{ .Values.coordinationEngine.config.carbonOptimization.maxCarbonIntensity }}
+      targetGreenRatio: {{ .Values.coordinationEngine.config.carbonOptimization.targetGreenRatio }}
+    storageCoordination:
+      enabled: {{ .Values.coordinationEngine.config.storageCoordination.enabled }}
+      optimizationInterval: {{ .Values.coordinationEngine.config.storageCoordination.optimizationInterval }}
+    database:
+      host: {{ include "edgehub.fullname" . }}-postgresql
+      port: 5432
+      name: {{ .Values.postgresql.auth.database }}
+      user: {{ .Values.postgresql.auth.username }}
+    redis:
+      host: {{ include "edgehub.fullname" . }}-redis
+      port: 6379
+    nats:
+      url: nats://{{ include "edgehub.nats.fullname" . }}:4222
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "edgehub.coordination.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "edgehub.coordination.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.coordinationEngine.replicaCount }}
+  selector:
+    matchLabels:
+      app: {{ include "edgehub.coordination.fullname" . }}
+  template:
+    metadata:
+      labels:
+        app: {{ include "edgehub.coordination.fullname" . }}
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "{{ .Values.coordinationEngine.port }}"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: {{ include "edgehub.fullname" . }}
+      containers:
+      - name: coordination-engine
+        image: "{{ .Values.image.repository }}/{{ .Values.coordinationEngine.image }}:{{ .Values.image.tag }}"
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        ports:
+        - name: http
+          containerPort: {{ .Values.coordinationEngine.port }}
+          protocol: TCP
+        - name: grpc
+          containerPort: {{ .Values.coordinationEngine.grpcPort }}
+          protocol: TCP
+        env:
+        - name: DB_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: {{ include "edgehub.coordination.fullname" . }}-config
+              key: database.host
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "edgehub.fullname" . }}-secrets
+              key: db-password
+        - name: JWT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "edgehub.fullname" . }}-secrets
+              key: jwt-secret
+        - name: NATS_URL
+          valueFrom:
+            configMapKeyRef:
+              name: {{ include "edgehub.coordination.fullname" . }}-config
+              key: nats.url
+        resources:
+          {{- toYaml .Values.coordinationEngine.resources | nindent 10 }}
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: http
+          initialDelaySeconds: {{ .Values.coordinationEngine.livenessProbe.initialDelaySeconds }}
+          periodSeconds: {{ .Values.coordinationEngine.livenessProbe.periodSeconds }}
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: http
+          initialDelaySeconds: {{ .Values.coordinationEngine.readinessProbe.initialDelaySeconds }}
+          periodSeconds: {{ .Values.coordinationEngine.readinessProbe.periodSeconds }}
+        volumeMounts:
+        - name: config
+          mountPath: /etc/edgehub
+          readOnly: true
+      volumes:
+      - name: config
+        configMap:
+          name: {{ include "edgehub.coordination.fullname" . }}-config
+      {{- with .Values.coordinationEngine.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.coordinationEngine.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "edgehub.coordination.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "edgehub.coordination.labels" . | nindent 4 }}
+spec:
+  type: ClusterIP
+  ports:
+  - name: http
+    port: {{ .Values.coordinationEngine.port }}
+    targetPort: http
+    protocol: TCP
+  - name: grpc
+    port: {{ .Values.coordinationEngine.grpcPort }}
+    targetPort: grpc
+    protocol: TCP
+  selector:
+    app: {{ include "edgehub.coordination.fullname" . }}
+{{- if .Values.serviceMonitor.enabled }}
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "edgehub.coordination.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "edgehub.coordination.labels" . | nindent 4 }}
+spec:
+  selector:
+    matchLabels:
+      app: {{ include "edgehub.coordination.fullname" . }}
+  endpoints:
+  - port: http
+    path: /metrics
+    interval: {{ .Values.serviceMonitor.interval }}
+{{- end }}
+{{- end }}

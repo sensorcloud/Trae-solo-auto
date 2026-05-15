@@ -1,0 +1,317 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: agentsandboxes.agent.edgehub.io
+  labels:
+    app.kubernetes.io/name: edgehub
+    app.kubernetes.io/component: agent-sandbox
+spec:
+  group: agent.edgehub.io
+  names:
+    kind: AgentSandbox
+    listKind: AgentSandboxList
+    plural: agentsandboxes
+    singular: agentsandbox
+    shortNames:
+    - asb
+    - sandbox
+  scope: Namespaced
+  versions:
+  - name: v1alpha1
+    served: true
+    storage: true
+    schema:
+      openAPIV3Schema:
+        type: object
+        properties:
+          spec:
+            type: object
+            properties:
+              runtime:
+                type: string
+                enum:
+                - runsc
+                - kata
+                - runc
+                default: runsc
+                description: "沙箱运行时类型"
+              tenantId:
+                type: string
+                description: "租户ID"
+              nodeId:
+                type: string
+                description: "节点ID"
+              resources:
+                type: object
+                properties:
+                  cpuRequest:
+                    type: string
+                    default: "500m"
+                  cpuLimit:
+                    type: string
+                    default: "2"
+                  memoryRequest:
+                    type: string
+                    default: "512Mi"
+                  memoryLimit:
+                    type: string
+                    default: "2Gi"
+                  gpuRequest:
+                    type: integer
+                    default: 0
+                  ephemeralStorage:
+                    type: string
+                    default: "10Gi"
+              network:
+                type: object
+                properties:
+                  policy:
+                    type: string
+                    enum:
+                    - isolated
+                    - bridge
+                    - host
+                    default: isolated
+                  ingressRules:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        port:
+                          type: integer
+                        protocol:
+                          type: string
+                          default: TCP
+                        source:
+                          type: string
+                  egressRules:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        port:
+                          type: integer
+                        protocol:
+                          type: string
+                          default: TCP
+                        destination:
+                          type: string
+              security:
+                type: object
+                properties:
+                  seccompProfile:
+                    type: string
+                  appArmorProfile:
+                    type: string
+                  noNewPrivileges:
+                    type: boolean
+                    default: true
+                  readOnlyRootFS:
+                    type: boolean
+                    default: true
+                  dropCapabilities:
+                    type: array
+                    items:
+                      type: string
+                  forbiddenSyscalls:
+                    type: array
+                    items:
+                      type: string
+                  userNamespace:
+                    type: boolean
+                    default: true
+                  pidNamespace:
+                    type: boolean
+                    default: true
+                  networkNamespace:
+                    type: boolean
+                    default: true
+              config:
+                type: object
+                properties:
+                  rootfsImage:
+                    type: string
+                    description: "根文件系统镜像"
+                  stdin:
+                    type: boolean
+                    default: false
+                  tty:
+                    type: boolean
+                    default: false
+                  env:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        name:
+                          type: string
+                        value:
+                          type: string
+              labels:
+                type: object
+                additionalProperties:
+                  type: string
+              annotations:
+                type: object
+                additionalProperties:
+                  type: string
+            required:
+            - tenantId
+          status:
+            type: object
+            properties:
+              phase:
+                type: string
+                enum:
+                - Pending
+                - Creating
+                - Running
+                - Paused
+                - Stopped
+                - Error
+              sandboxId:
+                type: string
+              containerId:
+                type: string
+              podName:
+                type: string
+              podNamespace:
+                type: string
+              startedAt:
+                type: string
+                format: date-time
+              stoppedAt:
+                type: string
+                format: date-time
+              metrics:
+                type: object
+                properties:
+                  cpuUsage:
+                    type: number
+                  memoryUsage:
+                    type: number
+                  networkIn:
+                    type: number
+                  networkOut:
+                    type: number
+              agentCount:
+                type: integer
+              lastError:
+                type: string
+              lastUpdated:
+                type: string
+                format: date-time
+    subresources:
+      status: {}
+    additionalPrinterColumns:
+    - name: Runtime
+      type: string
+      jsonPath: .spec.runtime
+    - name: Phase
+      type: string
+      jsonPath: .status.phase
+    - name: Agents
+      type: integer
+      jsonPath: .status.agentCount
+    - name: Age
+      type: date
+      jsonPath: .metadata.creationTimestamp
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: agents.agent.edgehub.io
+  labels:
+    app.kubernetes.io/name: edgehub
+    app.kubernetes.io/component: agent-sandbox
+spec:
+  group: agent.edgehub.io
+  names:
+    kind: Agent
+    listKind: AgentList
+    plural: agents
+    singular: agent
+    shortNames:
+    - ag
+  scope: Namespaced
+  versions:
+  - name: v1alpha1
+    served: true
+    storage: true
+    schema:
+      openAPIV3Schema:
+        type: object
+        properties:
+          spec:
+            type: object
+            properties:
+              sandboxId:
+                type: string
+                description: "所属沙箱ID"
+              userId:
+                type: string
+                description: "用户ID"
+              spec:
+                type: object
+                description: "Agent规格定义"
+                x-kubernetes-preserve-unknown-fields: true
+              config:
+                type: object
+                description: "Agent配置"
+                x-kubernetes-preserve-unknown-fields: true
+              memoryLimit:
+                type: integer
+                description: "内存限制(字节)"
+              cpuLimit:
+                type: string
+                description: "CPU限制"
+              timeout:
+                type: integer
+                description: "超时时间(秒)"
+              environment:
+                type: object
+                additionalProperties:
+                  type: string
+              labels:
+                type: object
+                additionalProperties:
+                  type: string
+            required:
+            - sandboxId
+          status:
+            type: object
+            properties:
+              phase:
+                type: string
+                enum:
+                - Pending
+                - Creating
+                - Running
+                - Completed
+                - Failed
+                - Terminated
+              agentId:
+                type: string
+              startedAt:
+                type: string
+                format: date-time
+              finishedAt:
+                type: string
+                format: date-time
+              lastError:
+                type: string
+              lastUpdated:
+                type: string
+                format: date-time
+    subresources:
+      status: {}
+    additionalPrinterColumns:
+    - name: Sandbox
+      type: string
+      jsonPath: .spec.sandboxId
+    - name: Phase
+      type: string
+      jsonPath: .status.phase
+    - name: Age
+      type: date
+      jsonPath: .metadata.creationTimestamp

@@ -1,0 +1,364 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: energymarkets.energy.edgehub.io
+  labels:
+    app.kubernetes.io/name: edgehub
+    app.kubernetes.io/component: energy-market
+spec:
+  group: energy.edgehub.io
+  names:
+    kind: EnergyMarket
+    listKind: EnergyMarketList
+    plural: energymarkets
+    singular: energymarket
+    shortNames:
+    - em
+    - emkt
+  scope: Namespaced
+  versions:
+  - name: v1alpha1
+    served: true
+    storage: true
+    schema:
+      openAPIV3Schema:
+        type: object
+        properties:
+          spec:
+            type: object
+            properties:
+              region:
+                type: string
+                description: "能源市场区域"
+              tradingEnabled:
+                type: boolean
+                default: true
+                description: "是否启用交易功能"
+              greenCertEnabled:
+                type: boolean
+                default: true
+                description: "是否启用绿证功能"
+              vppEnabled:
+                type: boolean
+                default: true
+                description: "是否启用虚拟电厂功能"
+              priceUpdateInterval:
+                type: integer
+                default: 60
+                description: "价格更新间隔(秒)"
+              maxOrderBatchSize:
+                type: integer
+                default: 1000
+                description: "最大订单批量大小"
+              settlementPeriod:
+                type: string
+                default: "1h"
+                description: "结算周期"
+              minOrderAmount:
+                type: number
+                default: 0.1
+                description: "最小订单金额(MWh)"
+              maxOrderAmount:
+                type: number
+                default: 1000
+                description: "最大订单金额(MWh)"
+              priceLimits:
+                type: object
+                properties:
+                  minPrice:
+                    type: number
+                    default: 0
+                  maxPrice:
+                    type: number
+                    default: 10
+                description: "价格限制"
+              tradingHours:
+                type: object
+                properties:
+                  start:
+                    type: string
+                    default: "00:00"
+                  end:
+                    type: string
+                    default: "23:59"
+                  timezone:
+                    type: string
+                    default: "Asia/Shanghai"
+                description: "交易时段配置"
+            required:
+            - region
+          status:
+            type: object
+            properties:
+              phase:
+                type: string
+                enum:
+                - Pending
+                - Active
+                - Suspended
+                - Failed
+              currentPrice:
+                type: number
+              tradingVolume:
+                type: number
+              activeOrders:
+                type: integer
+              lastUpdated:
+                type: string
+                format: date-time
+              conditions:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    type:
+                      type: string
+                    status:
+                      type: string
+                    lastTransitionTime:
+                      type: string
+                      format: date-time
+                    reason:
+                      type: string
+                    message:
+                      type: string
+    subresources:
+      status: {}
+    additionalPrinterColumns:
+    - name: Region
+      type: string
+      jsonPath: .spec.region
+    - name: Phase
+      type: string
+      jsonPath: .status.phase
+    - name: Price
+      type: number
+      jsonPath: .status.currentPrice
+    - name: Age
+      type: date
+      jsonPath: .metadata.creationTimestamp
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: powersources.energy.edgehub.io
+  labels:
+    app.kubernetes.io/name: edgehub
+    app.kubernetes.io/component: energy-market
+spec:
+  group: energy.edgehub.io
+  names:
+    kind: PowerSource
+    listKind: PowerSourceList
+    plural: powersources
+    singular: powersource
+    shortNames:
+    - ps
+    - psrc
+  scope: Namespaced
+  versions:
+  - name: v1alpha1
+    served: true
+    storage: true
+    schema:
+      openAPIV3Schema:
+        type: object
+        properties:
+          spec:
+            type: object
+            properties:
+              type:
+                type: string
+                enum:
+                - solar
+                - wind
+                - hydro
+                - nuclear
+                - thermal
+                - storage
+                - mixed
+                description: "电源类型"
+              capacity:
+                type: number
+                description: "装机容量(MW)"
+              region:
+                type: string
+                description: "所属区域"
+              location:
+                type: object
+                properties:
+                  latitude:
+                    type: number
+                  longitude:
+                    type: number
+                  address:
+                    type: string
+              gridConnection:
+                type: object
+                properties:
+                  voltage:
+                    type: string
+                  point:
+                    type: string
+              owner:
+                type: object
+                properties:
+                  name:
+                    type: string
+                  tenantId:
+                    type: string
+            required:
+            - type
+            - capacity
+            - region
+          status:
+            type: object
+            properties:
+              phase:
+                type: string
+              currentOutput:
+                type: number
+              availableCapacity:
+                type: number
+              greenRatio:
+                type: number
+              carbonIntensity:
+                type: number
+              pricePerKWh:
+                type: number
+              lastUpdated:
+                type: string
+                format: date-time
+    subresources:
+      status: {}
+    additionalPrinterColumns:
+    - name: Type
+      type: string
+      jsonPath: .spec.type
+    - name: Capacity
+      type: number
+      jsonPath: .spec.capacity
+    - name: Output
+      type: number
+      jsonPath: .status.currentOutput
+    - name: Phase
+      type: string
+      jsonPath: .status.phase
+    - name: Age
+      type: date
+      jsonPath: .metadata.creationTimestamp
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: energyorders.energy.edgehub.io
+  labels:
+    app.kubernetes.io/name: edgehub
+    app.kubernetes.io/component: energy-market
+spec:
+  group: energy.edgehub.io
+  names:
+    kind: EnergyOrder
+    listKind: EnergyOrderList
+    plural: energyorders
+    singular: energyorder
+    shortNames:
+    - eo
+    - eord
+  scope: Namespaced
+  versions:
+  - name: v1alpha1
+    served: true
+    storage: true
+    schema:
+      openAPIV3Schema:
+        type: object
+        properties:
+          spec:
+            type: object
+            properties:
+              type:
+                type: string
+                enum:
+                - buy
+                - sell
+              energyType:
+                type: string
+                enum:
+                - standard
+                - green
+                - mixed
+                default: standard
+              amount:
+                type: number
+                description: "电量(MWh)"
+              price:
+                type: number
+                description: "价格(元/MWh)"
+              deliveryPeriod:
+                type: object
+                properties:
+                  start:
+                    type: string
+                    format: date-time
+                  end:
+                    type: string
+                    format: date-time
+              marketType:
+                type: string
+                enum:
+                - spot
+                - day-ahead
+                - forward
+                default: spot
+              counterparty:
+                type: string
+                description: "交易对手方ID"
+            required:
+            - type
+            - amount
+            - price
+          status:
+            type: object
+            properties:
+              phase:
+                type: string
+                enum:
+                - Pending
+                - Submitted
+                - Matched
+                - Settled
+                - Cancelled
+                - Failed
+              orderNo:
+                type: string
+              matchedAmount:
+                type: number
+              matchedPrice:
+                type: number
+              transactionId:
+                type: string
+              createdAt:
+                type: string
+                format: date-time
+              updatedAt:
+                type: string
+                format: date-time
+    subresources:
+      status: {}
+    additionalPrinterColumns:
+    - name: Type
+      type: string
+      jsonPath: .spec.type
+    - name: Amount
+      type: number
+      jsonPath: .spec.amount
+    - name: Price
+      type: number
+      jsonPath: .spec.price
+    - name: Phase
+      type: string
+      jsonPath: .status.phase
+    - name: Age
+      type: date
+      jsonPath: .metadata.creationTimestamp

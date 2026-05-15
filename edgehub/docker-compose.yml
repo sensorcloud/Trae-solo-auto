@@ -1,0 +1,366 @@
+version: "3.8"
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: edgehub-postgres
+    environment:
+      POSTGRES_USER: edgehub
+      POSTGRES_PASSWORD: edgehub123
+      POSTGRES_DB: edgehub
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U edgehub"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - edgehub-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: edgehub-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - edgehub-network
+
+  nats:
+    image: nats:2.10-alpine
+    container_name: edgehub-nats
+    ports:
+      - "4222:4222"
+      - "8222:8222"
+    command:
+      - "--http_port=8222"
+      - "--jetstream"
+      - "--store_dir=/data"
+    volumes:
+      - nats_data:/data
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8222/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - edgehub-network
+
+  mqtt:
+    image: eclipse-mosquitto:2
+    container_name: edgehub-mqtt
+    ports:
+      - "1883:1883"
+      - "9001:9001"
+    volumes:
+      - mqtt_data:/mosquitto/data
+      - mqtt_config:/mosquitto/config
+    healthcheck:
+      test: ["CMD-SHELL", "mosquitto_sub -t '$$SYS/#' -C 1 -i healthcheck -W 3"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - edgehub-network
+
+  api-server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: api-server
+    container_name: edgehub-api
+    ports:
+      - "8080:8080"
+      - "9090:9090"
+    environment:
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USER=edgehub
+      - DB_PASSWORD=edgehub123
+      - DB_NAME=edgehub
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - NATS_URL=nats://nats:4222
+      - JWT_SECRET=dev-secret-key-change-in-production
+      - LOG_LEVEL=debug
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      nats:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - edgehub-network
+
+  scheduler:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: scheduler
+    container_name: edgehub-scheduler
+    ports:
+      - "9091:9090"
+    environment:
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USER=edgehub
+      - DB_PASSWORD=edgehub123
+      - DB_NAME=edgehub
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - NATS_URL=nats://nats:4222
+      - LOG_LEVEL=debug
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - edgehub-network
+
+  energy-market:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: energy-market
+    container_name: edgehub-energy
+    ports:
+      - "8081:8081"
+      - "9092:9091"
+    environment:
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USER=edgehub
+      - DB_PASSWORD=edgehub123
+      - DB_NAME=edgehub
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - NATS_URL=nats://nats:4222
+      - LOG_LEVEL=debug
+      - TRADING_ENABLED=true
+      - GREEN_CERT_ENABLED=true
+      - VPP_ENABLED=true
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      nats:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8081/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - edgehub-network
+
+  agent-sandbox:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: agent-sandbox
+    container_name: edgehub-agent
+    ports:
+      - "8082:8082"
+      - "9093:9092"
+    environment:
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USER=edgehub
+      - DB_PASSWORD=edgehub123
+      - DB_NAME=edgehub
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - NATS_URL=nats://nats:4222
+      - LOG_LEVEL=debug
+      - DEFAULT_RUNTIME=runsc
+      - MAX_SANDBOXES_PER_TENANT=100
+    privileged: true
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - sandbox_state:/var/lib/edgehub/sandbox
+      - sandbox_storage:/var/lib/edgehub/storage
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8082/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - edgehub-network
+
+  iot-connector:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: iot-connector
+    container_name: edgehub-iot
+    ports:
+      - "8083:8083"
+      - "9094:9093"
+    environment:
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USER=edgehub
+      - DB_PASSWORD=edgehub123
+      - DB_NAME=edgehub
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - NATS_URL=nats://nats:4222
+      - MQTT_BROKER=tcp://mqtt:1883
+      - LOG_LEVEL=debug
+      - MAX_DEVICES=10000
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      mqtt:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8083/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - edgehub-network
+
+  coordination-engine:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: coordination-engine
+    container_name: edgehub-coordination
+    ports:
+      - "8084:8084"
+      - "9095:9094"
+    environment:
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USER=edgehub
+      - DB_PASSWORD=edgehub123
+      - DB_NAME=edgehub
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - NATS_URL=nats://nats:4222
+      - LOG_LEVEL=debug
+      - OPTIMIZATION_HORIZON=60
+      - PREDICTION_HORIZON=96
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      nats:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8084/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - edgehub-network
+
+  prometheus:
+    image: prom/prometheus:v2.48.0
+    container_name: edgehub-prometheus
+    ports:
+      - "9096:9090"
+    volumes:
+      - prometheus_data:/prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--web.enable-lifecycle"
+    configs:
+      - source: prometheus_config
+        target: /etc/prometheus/prometheus.yml
+    networks:
+      - edgehub-network
+
+  grafana:
+    image: grafana/grafana:10.2.0
+    container_name: edgehub-grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - grafana_data:/var/lib/grafana
+    depends_on:
+      - prometheus
+    networks:
+      - edgehub-network
+
+configs:
+  prometheus_config:
+    content: |
+      global:
+        scrape_interval: 15s
+        evaluation_interval: 15s
+
+      scrape_configs:
+        - job_name: 'prometheus'
+          static_configs:
+            - targets: ['localhost:9090']
+
+        - job_name: 'api-server'
+          static_configs:
+            - targets: ['api-server:8080']
+
+        - job_name: 'scheduler'
+          static_configs:
+            - targets: ['scheduler:9090']
+
+        - job_name: 'energy-market'
+          static_configs:
+            - targets: ['energy-market:8081']
+
+        - job_name: 'agent-sandbox'
+          static_configs:
+            - targets: ['agent-sandbox:8082']
+
+        - job_name: 'iot-connector'
+          static_configs:
+            - targets: ['iot-connector:8083']
+
+        - job_name: 'coordination-engine'
+          static_configs:
+            - targets: ['coordination-engine:8084']
+
+volumes:
+  postgres_data:
+  redis_data:
+  nats_data:
+  mqtt_data:
+  mqtt_config:
+  sandbox_state:
+  sandbox_storage:
+  prometheus_data:
+  grafana_data:
+
+networks:
+  edgehub-network:
+    driver: bridge

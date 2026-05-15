@@ -1,0 +1,189 @@
+{{- if .Values.agentSandbox.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "edgehub.agent.fullname" . }}-config
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "edgehub.agent.labels" . | nindent 4 }}
+data:
+  config.yaml: |
+    server:
+      port: {{ .Values.agentSandbox.port }}
+      grpcPort: {{ .Values.agentSandbox.grpcPort }}
+    sandbox:
+      defaultRuntime: {{ .Values.agentSandbox.config.defaultRuntime }}
+      maxSandboxesPerTenant: {{ .Values.agentSandbox.config.maxSandboxesPerTenant }}
+      maxAgentsPerSandbox: {{ .Values.agentSandbox.config.maxAgentsPerSandbox }}
+      defaultMemoryLimit: {{ .Values.agentSandbox.config.defaultMemoryLimit }}
+      defaultCPULimit: {{ .Values.agentSandbox.config.defaultCPULimit }}
+      defaultTimeout: {{ .Values.agentSandbox.config.defaultTimeout }}
+      stateDir: {{ .Values.agentSandbox.config.stateDir }}
+      storageDir: {{ .Values.agentSandbox.config.storageDir }}
+      metricsInterval: {{ .Values.agentSandbox.config.metricsInterval }}
+      healthCheckInterval: {{ .Values.agentSandbox.config.healthCheckInterval }}
+    dra:
+      enabled: {{ .Values.agentSandbox.config.enableDRA }}
+      resourceClass: {{ .Values.agentSandbox.config.draResourceClass }}
+    runtime:
+      runsc:
+        enabled: {{ .Values.agentSandbox.runtime.runsc.enabled }}
+      kata:
+        enabled: {{ .Values.agentSandbox.runtime.kata.enabled }}
+      runc:
+        enabled: {{ .Values.agentSandbox.runtime.runc.enabled }}
+    database:
+      host: {{ include "edgehub.fullname" . }}-postgresql
+      port: 5432
+      name: {{ .Values.postgresql.auth.database }}
+      user: {{ .Values.postgresql.auth.username }}
+    redis:
+      host: {{ include "edgehub.fullname" . }}-redis
+      port: 6379
+    nats:
+      url: nats://{{ include "edgehub.nats.fullname" . }}:4222
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "edgehub.agent.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "edgehub.agent.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.agentSandbox.replicaCount }}
+  selector:
+    matchLabels:
+      app: {{ include "edgehub.agent.fullname" . }}
+  template:
+    metadata:
+      labels:
+        app: {{ include "edgehub.agent.fullname" . }}
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "{{ .Values.agentSandbox.port }}"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: {{ include "edgehub.fullname" . }}
+      containers:
+      - name: agent-sandbox
+        image: "{{ .Values.image.repository }}/{{ .Values.agentSandbox.image }}:{{ .Values.image.tag }}"
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        ports:
+        - name: http
+          containerPort: {{ .Values.agentSandbox.port }}
+          protocol: TCP
+        - name: grpc
+          containerPort: {{ .Values.agentSandbox.grpcPort }}
+          protocol: TCP
+        env:
+        - name: DB_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: {{ include "edgehub.agent.fullname" . }}-config
+              key: database.host
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "edgehub.fullname" . }}-secrets
+              key: db-password
+        - name: JWT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "edgehub.fullname" . }}-secrets
+              key: jwt-secret
+        - name: NATS_URL
+          valueFrom:
+            configMapKeyRef:
+              name: {{ include "edgehub.agent.fullname" . }}-config
+              key: nats.url
+        resources:
+          {{- toYaml .Values.agentSandbox.resources | nindent 10 }}
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: http
+          initialDelaySeconds: {{ .Values.agentSandbox.livenessProbe.initialDelaySeconds }}
+          periodSeconds: {{ .Values.agentSandbox.livenessProbe.periodSeconds }}
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: http
+          initialDelaySeconds: {{ .Values.agentSandbox.readinessProbe.initialDelaySeconds }}
+          periodSeconds: {{ .Values.agentSandbox.readinessProbe.periodSeconds }}
+        volumeMounts:
+        - name: config
+          mountPath: /etc/edgehub
+          readOnly: true
+        - name: sandbox-state
+          mountPath: {{ .Values.agentSandbox.config.stateDir }}
+        - name: sandbox-storage
+          mountPath: {{ .Values.agentSandbox.config.storageDir }}
+        - name: runtime-socket
+          mountPath: /run/containerd
+        securityContext:
+          privileged: true
+      volumes:
+      - name: config
+        configMap:
+          name: {{ include "edgehub.agent.fullname" . }}-config
+      - name: sandbox-state
+        hostPath:
+          path: /var/lib/edgehub/sandbox
+          type: DirectoryOrCreate
+      - name: sandbox-storage
+        hostPath:
+          path: /var/lib/edgehub/storage
+          type: DirectoryOrCreate
+      - name: runtime-socket
+        hostPath:
+          path: /run/containerd
+          type: Socket
+      {{- with .Values.agentSandbox.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.agentSandbox.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "edgehub.agent.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "edgehub.agent.labels" . | nindent 4 }}
+spec:
+  type: ClusterIP
+  ports:
+  - name: http
+    port: {{ .Values.agentSandbox.port }}
+    targetPort: http
+    protocol: TCP
+  - name: grpc
+    port: {{ .Values.agentSandbox.grpcPort }}
+    targetPort: grpc
+    protocol: TCP
+  selector:
+    app: {{ include "edgehub.agent.fullname" . }}
+{{- if .Values.serviceMonitor.enabled }}
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "edgehub.agent.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "edgehub.agent.labels" . | nindent 4 }}
+spec:
+  selector:
+    matchLabels:
+      app: {{ include "edgehub.agent.fullname" . }}
+  endpoints:
+  - port: http
+    path: /metrics
+    interval: {{ .Values.serviceMonitor.interval }}
+{{- end }}
+{{- end }}

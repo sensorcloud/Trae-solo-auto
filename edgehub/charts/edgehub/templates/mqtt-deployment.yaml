@@ -1,0 +1,103 @@
+{{- if .Values.mqtt.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "edgehub.mqtt.fullname" . }}-config
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: {{ include "edgehub.mqtt.fullname" . }}
+data:
+  mosquitto.conf: |
+    listener {{ .Values.mqtt.port }}
+    listener {{ .Values.mqtt.wsPort }}
+    protocol websockets
+    persistence true
+    persistence_location /mosquitto/data
+    autosave_interval 1800
+    autosave_on_changes false
+    log_dest stdout
+    log_type all
+    connection_messages true
+    allow_anonymous true
+    max_connections -1
+    max_queued_messages 1000
+    max_queued_bytes 0
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "edgehub.mqtt.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: {{ include "edgehub.mqtt.fullname" . }}
+spec:
+  serviceName: {{ include "edgehub.mqtt.fullname" . }}
+  replicas: {{ .Values.mqtt.replicas }}
+  selector:
+    matchLabels:
+      app: {{ include "edgehub.mqtt.fullname" . }}
+  template:
+    metadata:
+      labels:
+        app: {{ include "edgehub.mqtt.fullname" . }}
+    spec:
+      containers:
+      - name: mqtt
+        image: {{ .Values.mqtt.image }}
+        ports:
+        - name: mqtt
+          containerPort: {{ .Values.mqtt.port }}
+        - name: websocket
+          containerPort: {{ .Values.mqtt.wsPort }}
+        resources:
+          {{- toYaml .Values.mqtt.resources | nindent 10 }}
+        volumeMounts:
+        - name: config
+          mountPath: /mosquitto/config
+        - name: data
+          mountPath: /mosquitto/data
+        livenessProbe:
+          tcpSocket:
+            port: mqtt
+          initialDelaySeconds: 10
+          periodSeconds: 10
+        readinessProbe:
+          tcpSocket:
+            port: mqtt
+          initialDelaySeconds: 5
+          periodSeconds: 5
+      volumes:
+      - name: config
+        configMap:
+          name: {{ include "edgehub.mqtt.fullname" . }}-config
+  {{- if .Values.mqtt.persistence.enabled }}
+  volumeClaimTemplates:
+  - metadata:
+      name: data
+    spec:
+      accessModes:
+      - ReadWriteOnce
+      resources:
+        requests:
+          storage: {{ .Values.mqtt.persistence.size }}
+  {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "edgehub.mqtt.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: {{ include "edgehub.mqtt.fullname" . }}
+spec:
+  type: ClusterIP
+  ports:
+  - name: mqtt
+    port: {{ .Values.mqtt.port }}
+    targetPort: mqtt
+  - name: websocket
+    port: {{ .Values.mqtt.wsPort }}
+    targetPort: websocket
+  selector:
+    app: {{ include "edgehub.mqtt.fullname" . }}
+{{- end }}

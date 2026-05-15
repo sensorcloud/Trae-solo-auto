@@ -1,0 +1,182 @@
+{{- if .Values.energyMarket.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "edgehub.energy.fullname" . }}-config
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "edgehub.energy.labels" . | nindent 4 }}
+data:
+  config.yaml: |
+    server:
+      port: {{ .Values.energyMarket.port }}
+      grpcPort: {{ .Values.energyMarket.grpcPort }}
+    trading:
+      enabled: {{ .Values.energyMarket.config.tradingEnabled }}
+      maxOrderBatchSize: {{ .Values.energyMarket.config.maxOrderBatchSize }}
+    greenCertificate:
+      enabled: {{ .Values.energyMarket.config.greenCertEnabled }}
+    vpp:
+      enabled: {{ .Values.energyMarket.config.vppEnabled }}
+    priceUpdateInterval: {{ .Values.energyMarket.config.priceUpdateInterval }}
+    database:
+      host: {{ include "edgehub.fullname" . }}-postgresql
+      port: 5432
+      name: {{ .Values.postgresql.auth.database }}
+      user: {{ .Values.postgresql.auth.username }}
+    redis:
+      host: {{ include "edgehub.fullname" . }}-redis
+      port: 6379
+    nats:
+      url: nats://{{ include "edgehub.nats.fullname" . }}:4222
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "edgehub.energy.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "edgehub.energy.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.energyMarket.replicaCount }}
+  selector:
+    matchLabels:
+      app: {{ include "edgehub.energy.fullname" . }}
+  template:
+    metadata:
+      labels:
+        app: {{ include "edgehub.energy.fullname" . }}
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "{{ .Values.energyMarket.port }}"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: {{ include "edgehub.fullname" . }}
+      containers:
+      - name: energy-market
+        image: "{{ .Values.image.repository }}/{{ .Values.energyMarket.image }}:{{ .Values.image.tag }}"
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        ports:
+        - name: http
+          containerPort: {{ .Values.energyMarket.port }}
+          protocol: TCP
+        - name: grpc
+          containerPort: {{ .Values.energyMarket.grpcPort }}
+          protocol: TCP
+        env:
+        - name: DB_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: {{ include "edgehub.energy.fullname" . }}-config
+              key: database.host
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "edgehub.fullname" . }}-secrets
+              key: db-password
+        - name: JWT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "edgehub.fullname" . }}-secrets
+              key: jwt-secret
+        - name: NATS_URL
+          valueFrom:
+            configMapKeyRef:
+              name: {{ include "edgehub.energy.fullname" . }}-config
+              key: nats.url
+        resources:
+          {{- toYaml .Values.energyMarket.resources | nindent 10 }}
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: http
+          initialDelaySeconds: {{ .Values.energyMarket.livenessProbe.initialDelaySeconds }}
+          periodSeconds: {{ .Values.energyMarket.livenessProbe.periodSeconds }}
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: http
+          initialDelaySeconds: {{ .Values.energyMarket.readinessProbe.initialDelaySeconds }}
+          periodSeconds: {{ .Values.energyMarket.readinessProbe.periodSeconds }}
+        volumeMounts:
+        - name: config
+          mountPath: /etc/edgehub
+          readOnly: true
+        {{- if .Values.energyMarket.storage.enabled }}
+        - name: data
+          mountPath: /data
+        {{- end }}
+      volumes:
+      - name: config
+        configMap:
+          name: {{ include "edgehub.energy.fullname" . }}-config
+      {{- if .Values.energyMarket.storage.enabled }}
+      - name: data
+        persistentVolumeClaim:
+          claimName: {{ include "edgehub.energy.fullname" . }}-data
+      {{- end }}
+      {{- with .Values.energyMarket.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.energyMarket.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "edgehub.energy.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "edgehub.energy.labels" . | nindent 4 }}
+spec:
+  type: ClusterIP
+  ports:
+  - name: http
+    port: {{ .Values.energyMarket.port }}
+    targetPort: http
+    protocol: TCP
+  - name: grpc
+    port: {{ .Values.energyMarket.grpcPort }}
+    targetPort: grpc
+    protocol: TCP
+  selector:
+    app: {{ include "edgehub.energy.fullname" . }}
+{{- if .Values.energyMarket.storage.enabled }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "edgehub.energy.fullname" . }}-data
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "edgehub.energy.labels" . | nindent 4 }}
+spec:
+  accessModes:
+  - ReadWriteOnce
+  storageClassName: {{ .Values.energyMarket.storage.className }}
+  resources:
+    requests:
+      storage: {{ .Values.energyMarket.storage.size }}
+{{- end }}
+{{- if .Values.serviceMonitor.enabled }}
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "edgehub.energy.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "edgehub.energy.labels" . | nindent 4 }}
+spec:
+  selector:
+    matchLabels:
+      app: {{ include "edgehub.energy.fullname" . }}
+  endpoints:
+  - port: http
+    path: /metrics
+    interval: {{ .Values.serviceMonitor.interval }}
+{{- end }}
+{{- end }}

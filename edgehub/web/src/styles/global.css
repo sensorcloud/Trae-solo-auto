@@ -13,6 +13,15 @@
   --shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1);
 }
 
+[data-theme="dark"] {
+  --background: #0f172a;
+  --surface: #1e293b;
+  --text-primary: #f1f5f9;
+  --text-secondary: #94a3b8;
+  --border: #334155;
+  --shadow: 0 1px 3px 0 rgb(0 0 0 / 0.3);
+}
+
 * {
   margin: 0;
   padding: 0;

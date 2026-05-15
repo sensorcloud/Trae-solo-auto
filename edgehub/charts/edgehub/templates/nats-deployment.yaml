@@ -1,0 +1,141 @@
+{{- if and .Values.messageQueue.enabled (eq .Values.messageQueue.type "nats") }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "edgehub.nats.fullname" . }}-config
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: {{ include "edgehub.nats.fullname" . }}
+data:
+  nats.conf: |
+    port: 4222
+    monitor_port: 8222
+    
+    {{- if .Values.messageQueue.nats.jetstream.enabled }}
+    jetstream {
+      store_dir: /data/jetstream
+      {{- if eq .Values.messageQueue.nats.jetstream.storage "file" }}
+      max_file: {{ .Values.messageQueue.nats.jetstream.maxSize }}
+      {{- end }}
+    }
+    {{- end }}
+    
+    cluster {
+      name: {{ include "edgehub.nats.fullname" . }}
+      listen: 0.0.0.0:6222
+      routes: [
+        {{- $replicas := .Values.messageQueue.nats.replicas | int -}}
+        {{- range $i := until $replicas }}
+        nats://{{ include "edgehub.nats.fullname" $ }}-{{ $i }}.{{ include "edgehub.nats.fullname" $ }}.{{ $.Release.Namespace }}.svc:6222{{ if lt (add1 $i) $replicas }},{{ end }}
+        {{- end }}
+      ]
+    }
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "edgehub.nats.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: {{ include "edgehub.nats.fullname" . }}
+spec:
+  serviceName: {{ include "edgehub.nats.fullname" . }}
+  replicas: {{ .Values.messageQueue.nats.replicas }}
+  selector:
+    matchLabels:
+      app: {{ include "edgehub.nats.fullname" . }}
+  template:
+    metadata:
+      labels:
+        app: {{ include "edgehub.nats.fullname" . }}
+    spec:
+      containers:
+      - name: nats
+        image: {{ .Values.messageQueue.nats.image }}
+        ports:
+        - name: client
+          containerPort: 4222
+        - name: cluster
+          containerPort: 6222
+        - name: monitor
+          containerPort: 8222
+        args:
+        - "--config"
+        - "/etc/nats/nats.conf"
+        env:
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        resources:
+          {{- toYaml .Values.messageQueue.nats.resources | nindent 10 }}
+        volumeMounts:
+        - name: config
+          mountPath: /etc/nats
+        - name: data
+          mountPath: /data
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: monitor
+          initialDelaySeconds: 10
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /healthz
+            port: monitor
+          initialDelaySeconds: 5
+          periodSeconds: 5
+      volumes:
+      - name: config
+        configMap:
+          name: {{ include "edgehub.nats.fullname" . }}-config
+  volumeClaimTemplates:
+  - metadata:
+      name: data
+    spec:
+      accessModes:
+      - ReadWriteOnce
+      resources:
+        requests:
+          storage: 5Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "edgehub.nats.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: {{ include "edgehub.nats.fullname" . }}
+spec:
+  type: ClusterIP
+  clusterIP: None
+  ports:
+  - name: client
+    port: 4222
+    targetPort: client
+  - name: cluster
+    port: 6222
+    targetPort: cluster
+  - name: monitor
+    port: 8222
+    targetPort: monitor
+  selector:
+    app: {{ include "edgehub.nats.fullname" . }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "edgehub.nats.fullname" . }}-client
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: {{ include "edgehub.nats.fullname" . }}
+spec:
+  type: ClusterIP
+  ports:
+  - name: client
+    port: 4222
+    targetPort: client
+  selector:
+    app: {{ include "edgehub.nats.fullname" . }}
+{{- end }}

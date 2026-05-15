@@ -1,0 +1,191 @@
+{{- if .Values.iotConnector.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "edgehub.iot.fullname" . }}-config
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "edgehub.iot.labels" . | nindent 4 }}
+data:
+  config.yaml: |
+    server:
+      port: {{ .Values.iotConnector.port }}
+      grpcPort: {{ .Values.iotConnector.grpcPort }}
+    connector:
+      maxDevices: {{ .Values.iotConnector.config.maxDevices }}
+      telemetryBuffer: {{ .Values.iotConnector.config.telemetryBuffer }}
+      workerCount: {{ .Values.iotConnector.config.workerCount }}
+      telemetryRetention: {{ .Values.iotConnector.config.telemetryRetention }}
+      deviceShadowEnabled: {{ .Values.iotConnector.config.deviceShadowEnabled }}
+    protocols:
+      mqtt:
+        enabled: {{ .Values.iotConnector.protocols.mqtt.enabled }}
+        broker: {{ .Values.iotConnector.protocols.mqtt.broker }}
+        clientId: {{ .Values.iotConnector.protocols.mqtt.clientId }}
+        qos: {{ .Values.iotConnector.protocols.mqtt.qos }}
+        keepAlive: {{ .Values.iotConnector.protocols.mqtt.keepAlive }}
+      modbus:
+        enabled: {{ .Values.iotConnector.protocols.modbus.enabled }}
+        timeout: {{ .Values.iotConnector.protocols.modbus.timeout }}
+        retryCount: {{ .Values.iotConnector.protocols.modbus.retryCount }}
+      opcua:
+        enabled: {{ .Values.iotConnector.protocols.opcua.enabled }}
+        securityMode: {{ .Values.iotConnector.protocols.opcua.securityMode }}
+        securityPolicy: {{ .Values.iotConnector.protocols.opcua.securityPolicy }}
+    database:
+      host: {{ include "edgehub.fullname" . }}-postgresql
+      port: 5432
+      name: {{ .Values.postgresql.auth.database }}
+      user: {{ .Values.postgresql.auth.username }}
+    redis:
+      host: {{ include "edgehub.fullname" . }}-redis
+      port: 6379
+    nats:
+      url: nats://{{ include "edgehub.nats.fullname" . }}:4222
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ include "edgehub.iot.fullname" . }}-secrets
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "edgehub.iot.labels" . | nindent 4 }}
+type: Opaque
+stringData:
+  mqtt-username: {{ .Values.iotConnector.protocols.mqtt.username | default "" }}
+  mqtt-password: {{ .Values.iotConnector.protocols.mqtt.password | default "" }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "edgehub.iot.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "edgehub.iot.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.iotConnector.replicaCount }}
+  selector:
+    matchLabels:
+      app: {{ include "edgehub.iot.fullname" . }}
+  template:
+    metadata:
+      labels:
+        app: {{ include "edgehub.iot.fullname" . }}
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "{{ .Values.iotConnector.port }}"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: {{ include "edgehub.fullname" . }}
+      containers:
+      - name: iot-connector
+        image: "{{ .Values.image.repository }}/{{ .Values.iotConnector.image }}:{{ .Values.image.tag }}"
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        ports:
+        - name: http
+          containerPort: {{ .Values.iotConnector.port }}
+          protocol: TCP
+        - name: grpc
+          containerPort: {{ .Values.iotConnector.grpcPort }}
+          protocol: TCP
+        env:
+        - name: DB_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: {{ include "edgehub.iot.fullname" . }}-config
+              key: database.host
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "edgehub.fullname" . }}-secrets
+              key: db-password
+        - name: JWT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "edgehub.fullname" . }}-secrets
+              key: jwt-secret
+        - name: MQTT_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "edgehub.iot.fullname" . }}-secrets
+              key: mqtt-username
+        - name: MQTT_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "edgehub.iot.fullname" . }}-secrets
+              key: mqtt-password
+        - name: NATS_URL
+          valueFrom:
+            configMapKeyRef:
+              name: {{ include "edgehub.iot.fullname" . }}-config
+              key: nats.url
+        resources:
+          {{- toYaml .Values.iotConnector.resources | nindent 10 }}
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: http
+          initialDelaySeconds: {{ .Values.iotConnector.livenessProbe.initialDelaySeconds }}
+          periodSeconds: {{ .Values.iotConnector.livenessProbe.periodSeconds }}
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: http
+          initialDelaySeconds: {{ .Values.iotConnector.readinessProbe.initialDelaySeconds }}
+          periodSeconds: {{ .Values.iotConnector.readinessProbe.periodSeconds }}
+        volumeMounts:
+        - name: config
+          mountPath: /etc/edgehub
+          readOnly: true
+      volumes:
+      - name: config
+        configMap:
+          name: {{ include "edgehub.iot.fullname" . }}-config
+      {{- with .Values.iotConnector.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.iotConnector.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "edgehub.iot.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "edgehub.iot.labels" . | nindent 4 }}
+spec:
+  type: ClusterIP
+  ports:
+  - name: http
+    port: {{ .Values.iotConnector.port }}
+    targetPort: http
+    protocol: TCP
+  - name: grpc
+    port: {{ .Values.iotConnector.grpcPort }}
+    targetPort: grpc
+    protocol: TCP
+  selector:
+    app: {{ include "edgehub.iot.fullname" . }}
+{{- if .Values.serviceMonitor.enabled }}
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "edgehub.iot.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "edgehub.iot.labels" . | nindent 4 }}
+spec:
+  selector:
+    matchLabels:
+      app: {{ include "edgehub.iot.fullname" . }}
+  endpoints:
+  - port: http
+    path: /metrics
+    interval: {{ .Values.serviceMonitor.interval }}
+{{- end }}
+{{- end }}

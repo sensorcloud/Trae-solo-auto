@@ -1,0 +1,374 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: iotconnectors.iot.edgehub.io
+  labels:
+    app.kubernetes.io/name: edgehub
+    app.kubernetes.io/component: iot-connector
+spec:
+  group: iot.edgehub.io
+  names:
+    kind: IoTConnector
+    listKind: IoTConnectorList
+    plural: iotconnectors
+    singular: iotconnector
+    shortNames:
+    - iot
+    - iotc
+  scope: Namespaced
+  versions:
+  - name: v1alpha1
+    served: true
+    storage: true
+    schema:
+      openAPIV3Schema:
+        type: object
+        properties:
+          spec:
+            type: object
+            properties:
+              tenantId:
+                type: string
+                description: "租户ID"
+              protocols:
+                type: object
+                properties:
+                  mqtt:
+                    type: object
+                    properties:
+                      enabled:
+                        type: boolean
+                        default: false
+                      broker:
+                        type: string
+                      clientId:
+                        type: string
+                      qos:
+                        type: integer
+                        default: 1
+                      keepAlive:
+                        type: integer
+                        default: 60
+                  modbus:
+                    type: object
+                    properties:
+                      enabled:
+                        type: boolean
+                        default: false
+                      timeout:
+                        type: integer
+                        default: 5
+                      retryCount:
+                        type: integer
+                        default: 3
+                  opcua:
+                    type: object
+                    properties:
+                      enabled:
+                        type: boolean
+                        default: false
+                      securityMode:
+                        type: string
+                        default: "None"
+                      securityPolicy:
+                        type: string
+                        default: "None"
+              maxDevices:
+                type: integer
+                default: 10000
+                description: "最大设备数量"
+              telemetryBuffer:
+                type: integer
+                default: 10000
+                description: "遥测数据缓冲区大小"
+              workerCount:
+                type: integer
+                default: 10
+                description: "工作线程数"
+              telemetryRetention:
+                type: string
+                default: "30d"
+                description: "遥测数据保留时间"
+              deviceShadowEnabled:
+                type: boolean
+                default: true
+                description: "是否启用设备影子"
+            required:
+            - tenantId
+          status:
+            type: object
+            properties:
+              phase:
+                type: string
+                enum:
+                - Pending
+                - Running
+                - Degraded
+                - Failed
+              connectorId:
+                type: string
+              deviceCount:
+                type: integer
+              onlineDevices:
+                type: integer
+              protocolStatus:
+                type: object
+                additionalProperties:
+                  type: object
+                  properties:
+                    status:
+                      type: string
+                    connectedAt:
+                      type: string
+                      format: date-time
+                    lastError:
+                      type: string
+              messagesIn:
+                type: integer
+              messagesOut:
+                type: integer
+              bytesIn:
+                type: integer
+              bytesOut:
+                type: integer
+              lastUpdated:
+                type: string
+                format: date-time
+    subresources:
+      status: {}
+    additionalPrinterColumns:
+    - name: Phase
+      type: string
+      jsonPath: .status.phase
+    - name: Devices
+      type: integer
+      jsonPath: .status.deviceCount
+    - name: Online
+      type: integer
+      jsonPath: .status.onlineDevices
+    - name: Age
+      type: date
+      jsonPath: .metadata.creationTimestamp
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: iotdevices.iot.edgehub.io
+  labels:
+    app.kubernetes.io/name: edgehub
+    app.kubernetes.io/component: iot-connector
+spec:
+  group: iot.edgehub.io
+  names:
+    kind: IoTDevice
+    listKind: IoTDeviceList
+    plural: iotdevices
+    singular: iotdevice
+    shortNames:
+    - device
+    - iotd
+  scope: Namespaced
+  versions:
+  - name: v1alpha1
+    served: true
+    storage: true
+    schema:
+      openAPIV3Schema:
+        type: object
+        properties:
+          spec:
+            type: object
+            properties:
+              connectorId:
+                type: string
+                description: "所属连接器ID"
+              protocol:
+                type: string
+                enum:
+                - mqtt
+                - modbus
+                - opcua
+                description: "设备协议类型"
+              deviceType:
+                type: string
+                description: "设备类型"
+              manufacturer:
+                type: string
+                description: "制造商"
+              model:
+                type: string
+                description: "型号"
+              connectionInfo:
+                type: object
+                description: "连接信息"
+                x-kubernetes-preserve-unknown-fields: true
+              properties:
+                type: object
+                description: "设备属性定义"
+                x-kubernetes-preserve-unknown-fields: true
+              commands:
+                type: array
+                description: "设备命令定义"
+                items:
+                  type: object
+                  x-kubernetes-preserve-unknown-fields: true
+              events:
+                type: array
+                description: "设备事件定义"
+                items:
+                  type: object
+                  x-kubernetes-preserve-unknown-fields: true
+              alarms:
+                type: array
+                description: "设备告警定义"
+                items:
+                  type: object
+                  x-kubernetes-preserve-unknown-fields: true
+              labels:
+                type: object
+                additionalProperties:
+                  type: string
+            required:
+            - connectorId
+            - protocol
+          status:
+            type: object
+            properties:
+              phase:
+                type: string
+                enum:
+                - Offline
+                - Online
+                - Maintenance
+                - Fault
+              deviceId:
+                type: string
+              lastOnline:
+                type: string
+                format: date-time
+              lastError:
+                type: string
+              reportedState:
+                type: object
+                x-kubernetes-preserve-unknown-fields: true
+              desiredState:
+                type: object
+                x-kubernetes-preserve-unknown-fields: true
+              lastUpdated:
+                type: string
+                format: date-time
+    subresources:
+      status: {}
+    additionalPrinterColumns:
+    - name: Protocol
+      type: string
+      jsonPath: .spec.protocol
+    - name: Type
+      type: string
+      jsonPath: .spec.deviceType
+    - name: Phase
+      type: string
+      jsonPath: .status.phase
+    - name: Age
+      type: date
+      jsonPath: .metadata.creationTimestamp
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: devicealarms.iot.edgehub.io
+  labels:
+    app.kubernetes.io/name: edgehub
+    app.kubernetes.io/component: iot-connector
+spec:
+  group: iot.edgehub.io
+  names:
+    kind: DeviceAlarm
+    listKind: DeviceAlarmList
+    plural: devicealarms
+    singular: devicealarm
+    shortNames:
+    - dalarm
+  scope: Namespaced
+  versions:
+  - name: v1alpha1
+    served: true
+    storage: true
+    schema:
+      openAPIV3Schema:
+        type: object
+        properties:
+          spec:
+            type: object
+            properties:
+              deviceId:
+                type: string
+                description: "设备ID"
+              alarmName:
+                type: string
+                description: "告警名称"
+              severity:
+                type: string
+                enum:
+                - critical
+                - major
+                - minor
+                - warning
+                - info
+              message:
+                type: string
+                description: "告警消息"
+              triggerCondition:
+                type: object
+                description: "触发条件"
+                x-kubernetes-preserve-unknown-fields: true
+              autoClear:
+                type: boolean
+                default: false
+              clearCondition:
+                type: object
+                x-kubernetes-preserve-unknown-fields: true
+            required:
+            - deviceId
+            - alarmName
+            - severity
+          status:
+            type: object
+            properties:
+              phase:
+                type: string
+                enum:
+                - Active
+                - Cleared
+                - Acknowledged
+              triggeredAt:
+                type: string
+                format: date-time
+              clearedAt:
+                type: string
+                format: date-time
+              acknowledgedAt:
+                type: string
+                format: date-time
+              acknowledgedBy:
+                type: string
+              triggerCount:
+                type: integer
+              lastUpdated:
+                type: string
+                format: date-time
+    subresources:
+      status: {}
+    additionalPrinterColumns:
+    - name: Device
+      type: string
+      jsonPath: .spec.deviceId
+    - name: Severity
+      type: string
+      jsonPath: .spec.severity
+    - name: Phase
+      type: string
+      jsonPath: .status.phase
+    - name: Age
+      type: date
+      jsonPath: .metadata.creationTimestamp

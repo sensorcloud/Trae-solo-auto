@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -169,10 +169,70 @@ func RequireRole(roles ...string) gin.HandlerFunc {
 	}
 }
 
-func validateJWT(token string, secret string) (map[string]interface{}, error) {
-	return map[string]interface{}{
-		"user_id": uuid.New().String(),
-		"email":   "user@example.com",
-		"role":    "user",
-	}, nil
+func validateJWT(tokenString string, secret string) (map[string]interface{}, error) {
+	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+		}
+		return []byte(secret), nil
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	if claims, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {
+		result := make(map[string]interface{})
+		if sub, ok := claims["sub"]; ok {
+			result["user_id"] = sub
+		}
+		if email, ok := claims["email"]; ok {
+			result["email"] = email
+		}
+		if role, ok := claims["role"]; ok {
+			result["role"] = role
+		}
+		if tenantID, ok := claims["tenant_id"]; ok {
+			result["tenant_id"] = tenantID
+		}
+		return result, nil
+	}
+
+	return nil, fmt.Errorf("invalid token claims")
+}
+
+func RequireAuth() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		userID, exists := c.Get("user_id")
+		if !exists || userID == "" {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
+				"code":    http.StatusUnauthorized,
+				"message": "authentication required",
+			})
+			return
+		}
+		c.Next()
+	}
+}
+
+func RequireTenant() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		tenantID, exists := c.Get("tenant_id")
+		if !exists || tenantID == "" {
+			c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{
+				"code":    http.StatusBadRequest,
+				"message": "tenant ID required",
+			})
+			return
+		}
+		c.Next()
+	}
+}
+
+func AdminOnly() gin.HandlerFunc {
+	return RequireRole("admin")
+}
+
+func OperatorOrAdmin() gin.HandlerFunc {
+	return RequireRole("operator", "admin")
 }

@@ -4,7 +4,7 @@ import toast from 'react-hot-toast';
 import './Settings.css';
 
 const Settings: React.FC = () => {
-  const { user } = useAuth();
+  useAuth();
   const [activeTab, setActiveTab] = useState('general');
 
   const handleSave = () => {

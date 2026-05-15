@@ -175,3 +175,195 @@ serviceMonitor:
   interval: 30s
 
 priorityClassName: ""
+
+energyMarket:
+  enabled: true
+  image: edgehub/energy-market
+  replicaCount: 2
+  port: 8081
+  grpcPort: 9091
+  resources:
+    requests:
+      cpu: 500m
+      memory: 512Mi
+    limits:
+      cpu: 2000m
+      memory: 2Gi
+  livenessProbe:
+    initialDelaySeconds: 30
+    periodSeconds: 10
+  readinessProbe:
+    initialDelaySeconds: 5
+    periodSeconds: 5
+  config:
+    tradingEnabled: true
+    greenCertEnabled: true
+    vppEnabled: true
+    priceUpdateInterval: 60
+    maxOrderBatchSize: 1000
+  storage:
+    enabled: true
+    size: 50Gi
+    className: "standard"
+
+agentSandbox:
+  enabled: true
+  image: edgehub/agent-sandbox
+  replicaCount: 2
+  port: 8082
+  grpcPort: 9092
+  resources:
+    requests:
+      cpu: 1000m
+      memory: 1Gi
+    limits:
+      cpu: 4000m
+      memory: 4Gi
+  livenessProbe:
+    initialDelaySeconds: 30
+    periodSeconds: 10
+  readinessProbe:
+    initialDelaySeconds: 5
+    periodSeconds: 5
+  config:
+    defaultRuntime: "runsc"
+    maxSandboxesPerTenant: 100
+    maxAgentsPerSandbox: 10
+    defaultMemoryLimit: 2147483648
+    defaultCPULimit: "2"
+    defaultTimeout: 3600
+    enableDRA: true
+    draResourceClass: "gpu.nvidia.com"
+    stateDir: "/var/lib/edgehub/sandbox"
+    storageDir: "/var/lib/edgehub/storage"
+    metricsInterval: 30s
+    healthCheckInterval: 60s
+  runtime:
+    runsc:
+      enabled: true
+    kata:
+      enabled: true
+    runc:
+      enabled: true
+  tolerations: []
+  nodeSelector: {}
+
+iotConnector:
+  enabled: true
+  image: edgehub/iot-connector
+  replicaCount: 2
+  port: 8083
+  grpcPort: 9093
+  resources:
+    requests:
+      cpu: 500m
+      memory: 512Mi
+    limits:
+      cpu: 2000m
+      memory: 2Gi
+  livenessProbe:
+    initialDelaySeconds: 30
+    periodSeconds: 10
+  readinessProbe:
+    initialDelaySeconds: 5
+    periodSeconds: 5
+  config:
+    maxDevices: 10000
+    telemetryBuffer: 10000
+    workerCount: 10
+    telemetryRetention: "30d"
+    deviceShadowEnabled: true
+  protocols:
+    mqtt:
+      enabled: true
+      broker: "tcp://mqtt-broker:1883"
+      clientId: "edgehub-iot-connector"
+      username: ""
+      password: ""
+      qos: 1
+      keepAlive: 60
+    modbus:
+      enabled: true
+      timeout: 5
+      retryCount: 3
+    opcua:
+      enabled: true
+      securityMode: "None"
+      securityPolicy: "None"
+  tolerations: []
+  nodeSelector: {}
+
+coordinationEngine:
+  enabled: true
+  image: edgehub/coordination-engine
+  replicaCount: 2
+  port: 8084
+  grpcPort: 9094
+  resources:
+    requests:
+      cpu: 1000m
+      memory: 1Gi
+    limits:
+      cpu: 4000m
+      memory: 4Gi
+  livenessProbe:
+    initialDelaySeconds: 30
+    periodSeconds: 10
+  readinessProbe:
+    initialDelaySeconds: 5
+    periodSeconds: 5
+  config:
+    optimizationHorizon: 60
+    predictionHorizon: 96
+    schedulerType: "kueue"
+    maxRetry: 3
+    queueSize: 1000
+    workers: 10
+    priceOptimization:
+      enabled: true
+      priceThresholdHigh: 0.8
+      priceThresholdLow: 0.3
+    carbonOptimization:
+      enabled: true
+      maxCarbonIntensity: 0.5
+      targetGreenRatio: 0.8
+    storageCoordination:
+      enabled: true
+      optimizationInterval: 15m
+  tolerations: []
+  nodeSelector: {}
+
+messageQueue:
+  enabled: true
+  type: "nats"
+  nats:
+    image: nats:2.10-alpine
+    replicas: 3
+    jetstream:
+      enabled: true
+      storage: "file"
+      maxSize: "10Gi"
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+
+mqtt:
+  enabled: true
+  image: eclipse-mosquitto:2
+  replicas: 1
+  port: 1883
+  wsPort: 9001
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi
+  persistence:
+    enabled: true
+    size: 5Gi
