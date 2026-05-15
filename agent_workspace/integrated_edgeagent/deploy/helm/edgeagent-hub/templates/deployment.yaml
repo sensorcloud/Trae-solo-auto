@@ -13,10 +13,6 @@ spec:
       {{- include "edgeagent-hub.selectorLabels" . | nindent 6 }}
   template:
     metadata:
-      {{- with .Values.podAnnotations }}
-      annotations:
-        {{- toYaml . | nindent 8 }}
-      {{- end }}
       labels:
         {{- include "edgeagent-hub.selectorLabels" . | nindent 8 }}
     spec:
@@ -34,19 +30,19 @@ spec:
               protocol: TCP
           env:
             - name: DATABASE_HOST
-              value: {{ .Values.database.host }}
+              value: {{ .Values.database.host | quote }}
             - name: DATABASE_PORT
-              value: "{{ .Values.database.port }}"
+              value: {{ .Values.database.port | quote }}
             - name: DATABASE_NAME
-              value: {{ .Values.database.name }}
+              value: {{ .Values.database.name | quote }}
             - name: DATABASE_USER
-              value: {{ .Values.database.user }}
+              value: {{ .Values.database.user | quote }}
             - name: DATABASE_PASSWORD
-              value: {{ .Values.database.password }}
+              value: {{ .Values.database.password | quote }}
             - name: JWT_SECRET
-              value: {{ .Values.jwt.secret }}
+              value: {{ .Values.jwt.secret | quote }}
             - name: LOG_LEVEL
-              value: {{ .Values.log.level }}
+              value: {{ .Values.log.level | quote }}
           livenessProbe:
             httpGet:
               path: /api/v1/metrics/health
