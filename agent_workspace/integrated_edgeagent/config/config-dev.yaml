@@ -1,0 +1,20 @@
+server:
+  host: "0.0.0.0"
+  port: "8080"
+
+database:
+  type: "sqlite"
+  path: "./data/edgeagent.db"
+
+jwt:
+  secret: "edgeagent-secret-key-change-in-production"
+  expire_hours: 2
+
+log:
+  level: "debug"
+  format: "console"
+
+agent:
+  sandbox:
+    enabled: true
+    max_instances: 10

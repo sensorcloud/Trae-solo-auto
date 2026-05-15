@@ -1,0 +1,28 @@
+server:
+  host: "0.0.0.0"
+  port: "8080"
+
+database:
+  host: "localhost"
+  port: "5432"
+  name: "edgeagent"
+  user: "postgres"
+  password: ""
+
+redis:
+  host: "localhost"
+  port: "6379"
+  password: ""
+
+jwt:
+  secret: "edgeagent-secret-key-change-in-production"
+  expire_hours: 2
+
+log:
+  level: "info"
+  format: "json"
+
+agent:
+  sandbox:
+    enabled: true
+    max_instances: 10
